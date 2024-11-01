@@ -1,4 +1,4 @@
-package com.muedsa.tvbox.demoplugin
+package com.muedsa.tvbox.novipnoad
 
 import com.muedsa.tvbox.api.store.IPluginPerfStore
 import com.muedsa.tvbox.api.store.PluginPerfKey

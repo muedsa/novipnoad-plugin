@@ -1,7 +1,7 @@
-package com.muedsa.tvbox.demoplugin.service
+package com.muedsa.tvbox.novipnoad.service
 
-import com.muedsa.tvbox.demoplugin.TestPlugin
-import com.muedsa.tvbox.demoplugin.checkMediaCardRows
+import com.muedsa.tvbox.novipnoad.TestPlugin
+import com.muedsa.tvbox.novipnoad.checkMediaCardRows
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
 

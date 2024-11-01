@@ -8,7 +8,7 @@
         android:supportsRtl="true"
         android:theme="@android:style/Theme.DeviceDefault" >
         <!-- 入口 -->
-        <meta-data android:name="tv_box_plugin_entry_point_impl" android:value="com.muedsa.tvbox.demoplugin.DemoPlugin"/>
+        <meta-data android:name="tv_box_plugin_entry_point_impl" android:value="com.muedsa.tvbox.novipnoad.NoVipNoadPlugin"/>
     </application>
 
 </manifest>
