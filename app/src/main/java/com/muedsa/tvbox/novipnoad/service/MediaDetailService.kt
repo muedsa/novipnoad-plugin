@@ -196,10 +196,10 @@ class MediaDetailService : IMediaDetailService {
         pKey: String,
         videoPageUrl: String
     ): VideoUrlInfo {
-        val referrer = "${NoVipNoadConst.URL}$videoPageUrl"
+        val pageUrl = "https://player.novipnoad.net/v1/?url=${vid}&pkey=${pKey}&ref=$videoPageUrl"
         val body =
-            Jsoup.connect("https://player.novipnoad.net/v1/?url=${vid}&pkey=${pKey}&ref=$videoPageUrl")
-                .feignChrome(referrer)
+            Jsoup.connect(pageUrl)
+                .feignChrome("${NoVipNoadConst.URL}/")
                 .get()
                 .body()
         val device = DEVICE_REGEX.find(body.html())?.groups?.get(1)?.value
@@ -221,7 +221,7 @@ class MediaDetailService : IMediaDetailService {
             ip = vkMatchGroups[3]?.value ?: throw RuntimeException("解析播放信息失败 vkey ip"),
             time = vkMatchGroups[4]?.value ?: throw RuntimeException("解析播放信息失败 vkey time")
         )
-        return step2(vid, device, vKey, referrer)
+        return step2(vid = vid, device = device, vKey = vKey, referrer = pageUrl)
     }
 
     private suspend fun step2(
@@ -238,7 +238,7 @@ class MediaDetailService : IMediaDetailService {
                 .body()
         val jsApi = JSAPI_REGEX.find(body.html())?.groups?.get(1)?.value
             ?: throw RuntimeException("解析播放信息失败 jsapi")
-        return step3(jsApi, vKey, referrer)
+        return step3(jsApi = jsApi, vKey = vKey, referrer = "https://player.novipnoad.net/")
     }
 
     private suspend fun step3(jsApi: String, vKey: VKey, referrer: String): VideoUrlInfo {
