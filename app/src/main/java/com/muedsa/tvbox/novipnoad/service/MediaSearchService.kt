@@ -4,14 +4,17 @@ import com.muedsa.tvbox.api.data.MediaCard
 import com.muedsa.tvbox.api.data.MediaCardRow
 import com.muedsa.tvbox.api.service.IMediaSearchService
 import com.muedsa.tvbox.novipnoad.NoVipNoadConst
-import com.muedsa.tvbox.novipnoad.feignChrome
+import com.muedsa.tvbox.tool.feignChrome
 import org.jsoup.Jsoup
+import java.net.CookieStore
 
-class MediaSearchService : IMediaSearchService {
+class MediaSearchService(
+    val cookieStore: CookieStore
+) : IMediaSearchService {
 
     override suspend fun searchMedias(query: String): MediaCardRow {
         val body = Jsoup.connect("${NoVipNoadConst.URL}/?s=$query")
-            .feignChrome()
+            .feignChrome(cookieStore = cookieStore)
             .get()
             .body()
         return MediaCardRow(

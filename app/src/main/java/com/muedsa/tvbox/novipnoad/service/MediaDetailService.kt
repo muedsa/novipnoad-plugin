@@ -10,27 +10,30 @@ import com.muedsa.tvbox.api.data.MediaPlaySource
 import com.muedsa.tvbox.api.data.SavedMediaCard
 import com.muedsa.tvbox.api.service.IMediaDetailService
 import com.muedsa.tvbox.novipnoad.NoVipNoadConst
-import com.muedsa.tvbox.novipnoad.feignChrome
 import com.muedsa.tvbox.novipnoad.model.PlayInfo
 import com.muedsa.tvbox.novipnoad.model.VKey
 import com.muedsa.tvbox.novipnoad.model.VideoUrlInfo
 import com.muedsa.tvbox.tool.ChromeUserAgent
 import com.muedsa.tvbox.tool.LenientJson
 import com.muedsa.tvbox.tool.decodeBase64
+import com.muedsa.tvbox.tool.feignChrome
 import kotlinx.coroutines.delay
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Element
 import timber.log.Timber
+import java.net.CookieStore
 import java.util.Locale
 import kotlin.math.pow
 
-class MediaDetailService : IMediaDetailService {
+class MediaDetailService(
+    private val cookieStore: CookieStore
+) : IMediaDetailService {
 
     override suspend fun getDetailData(mediaId: String, detailUrl: String): MediaDetail {
         val pageUrl = "${NoVipNoadConst.URL}$detailUrl"
         val doc = Jsoup.connect(pageUrl)
-            .feignChrome()
+            .feignChrome(cookieStore = cookieStore)
             .get()
         val body = doc.body()
         val videoItemEl = body.selectFirst("#content .video-item")!!
@@ -199,7 +202,7 @@ class MediaDetailService : IMediaDetailService {
         val pageUrl = "https://player.novipnoad.net/v1/?url=${vid}&pkey=${pKey}&ref=$videoPageUrl"
         val body =
             Jsoup.connect(pageUrl)
-                .feignChrome("${NoVipNoadConst.URL}/")
+                .feignChrome(referrer = "${NoVipNoadConst.URL}/", cookieStore = cookieStore)
                 .get()
                 .body()
         val device = DEVICE_REGEX.find(body.html())?.groups?.get(1)?.value
@@ -233,7 +236,7 @@ class MediaDetailService : IMediaDetailService {
         delay(200)
         val body =
             Jsoup.connect("https://player.novipnoad.net/v1/player.php?id=${vid}&device=$device")
-                .feignChrome(referrer)
+                .feignChrome(referrer = referrer, cookieStore = cookieStore)
                 .get()
                 .body()
         val jsApi = JSAPI_REGEX.find(body.html())?.groups?.get(1)?.value
@@ -251,7 +254,7 @@ class MediaDetailService : IMediaDetailService {
             .build()
             .toString()
         val jsText = Jsoup.connect(jsUrl)
-            .feignChrome(referrer)
+            .feignChrome(referrer = referrer, cookieStore = cookieStore)
             .get()
             .text()
         if (!jsText.startsWith("var videoUrl=JSON.decrypt(\"")

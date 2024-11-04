@@ -4,14 +4,17 @@ import com.muedsa.tvbox.api.data.MediaCard
 import com.muedsa.tvbox.api.data.MediaCardRow
 import com.muedsa.tvbox.api.service.IMainScreenService
 import com.muedsa.tvbox.novipnoad.NoVipNoadConst
-import com.muedsa.tvbox.novipnoad.feignChrome
+import com.muedsa.tvbox.tool.feignChrome
 import org.jsoup.Jsoup
+import java.net.CookieStore
 
-class MainScreenService : IMainScreenService {
+class MainScreenService(
+    private val cookieStore: CookieStore
+) : IMainScreenService {
 
     override suspend fun getRowsData(): List<MediaCardRow> {
         val body = Jsoup.connect("${NoVipNoadConst.URL}/")
-            .feignChrome()
+            .feignChrome(cookieStore = cookieStore)
             .get()
             .body()
         return body.select("#body #content .smart-box[id]").map { boxEl ->

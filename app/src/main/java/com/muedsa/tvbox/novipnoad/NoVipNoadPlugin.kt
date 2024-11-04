@@ -9,6 +9,8 @@ import com.muedsa.tvbox.api.service.IMediaSearchService
 import com.muedsa.tvbox.novipnoad.service.MainScreenService
 import com.muedsa.tvbox.novipnoad.service.MediaDetailService
 import com.muedsa.tvbox.novipnoad.service.MediaSearchService
+import com.muedsa.tvbox.tool.PluginCookieStore
+import com.muedsa.tvbox.tool.SharedCookieSaver
 
 class NoVipNoadPlugin(tvBoxContext: TvBoxContext) : IPlugin(tvBoxContext = tvBoxContext) {
 
@@ -18,9 +20,10 @@ class NoVipNoadPlugin(tvBoxContext: TvBoxContext) : IPlugin(tvBoxContext = tvBox
 
     override suspend fun onLaunched() {}
 
-    private val mainScreenService by lazy { MainScreenService() }
-    private val mediaDetailService by lazy { MediaDetailService() }
-    private val mediaSearchService by lazy { MediaSearchService() }
+    private val cookieStore by lazy { PluginCookieStore(saver = SharedCookieSaver(store = tvBoxContext.store)) }
+    private val mainScreenService by lazy { MainScreenService(cookieStore = cookieStore) }
+    private val mediaDetailService by lazy { MediaDetailService(cookieStore = cookieStore) }
+    private val mediaSearchService by lazy { MediaSearchService(cookieStore = cookieStore) }
 
     override fun provideMainScreenService(): IMainScreenService = mainScreenService
 
