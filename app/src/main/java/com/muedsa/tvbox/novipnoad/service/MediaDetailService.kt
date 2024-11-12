@@ -17,24 +17,28 @@ import com.muedsa.tvbox.tool.ChromeUserAgent
 import com.muedsa.tvbox.tool.LenientJson
 import com.muedsa.tvbox.tool.decodeBase64
 import com.muedsa.tvbox.tool.feignChrome
+import com.muedsa.tvbox.tool.get
+import com.muedsa.tvbox.tool.parseHtml
+import com.muedsa.tvbox.tool.stringBody
+import com.muedsa.tvbox.tool.toRequestBuild
 import kotlinx.coroutines.delay
 import okhttp3.HttpUrl.Companion.toHttpUrl
-import org.jsoup.Jsoup
+import okhttp3.OkHttpClient
 import org.jsoup.nodes.Element
 import timber.log.Timber
-import java.net.CookieStore
 import java.util.Locale
 import kotlin.math.pow
 
 class MediaDetailService(
-    private val cookieStore: CookieStore
+    private val okHttpClient: OkHttpClient
 ) : IMediaDetailService {
 
     override suspend fun getDetailData(mediaId: String, detailUrl: String): MediaDetail {
         val pageUrl = "${NoVipNoadConst.URL}$detailUrl"
-        val doc = Jsoup.connect(pageUrl)
-            .feignChrome(cookieStore = cookieStore)
-            .get()
+        val doc = pageUrl.toRequestBuild()
+            .feignChrome()
+            .get(okHttpClient = okHttpClient)
+            .parseHtml()
         val body = doc.body()
         val videoItemEl = body.selectFirst("#content .video-item")!!
         val title = videoItemEl.selectFirst("h1")!!.text().trim()
@@ -200,10 +204,10 @@ class MediaDetailService(
         videoPageUrl: String
     ): VideoUrlInfo {
         val pageUrl = "https://player.novipnoad.net/v1/?url=${vid}&pkey=${pKey}&ref=$videoPageUrl"
-        val body =
-            Jsoup.connect(pageUrl)
-                .feignChrome(referrer = "${NoVipNoadConst.URL}/", cookieStore = cookieStore)
-                .get()
+        val body = pageUrl.toRequestBuild()
+            .feignChrome(referer = "${NoVipNoadConst.URL}/")
+            .get(okHttpClient = okHttpClient)
+            .parseHtml()
                 .body()
         val device = DEVICE_REGEX.find(body.html())?.groups?.get(1)?.value
             ?: throw RuntimeException("解析播放信息失败 device")
@@ -235,9 +239,10 @@ class MediaDetailService(
     ): VideoUrlInfo {
         delay(200)
         val body =
-            Jsoup.connect("https://player.novipnoad.net/v1/player.php?id=${vid}&device=$device")
-                .feignChrome(referrer = referrer, cookieStore = cookieStore)
-                .get()
+            "https://player.novipnoad.net/v1/player.php?id=${vid}&device=$device".toRequestBuild()
+                .feignChrome(referer = referrer)
+                .get(okHttpClient = okHttpClient)
+                .parseHtml()
                 .body()
         val jsApi = JSAPI_REGEX.find(body.html())?.groups?.get(1)?.value
             ?: throw RuntimeException("解析播放信息失败 jsapi")
@@ -253,10 +258,10 @@ class MediaDetailService(
             .addQueryParameter("time", vKey.time)
             .build()
             .toString()
-        val jsText = Jsoup.connect(jsUrl)
-            .feignChrome(referrer = referrer, cookieStore = cookieStore)
-            .get()
-            .text()
+        val jsText = jsUrl.toRequestBuild()
+            .feignChrome(referer = referrer)
+            .get(okHttpClient = okHttpClient)
+            .stringBody()
         if (!jsText.startsWith("var videoUrl=JSON.decrypt(\"")
             || !jsText.endsWith("\");")
         ) {

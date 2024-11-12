@@ -9,8 +9,9 @@ import com.muedsa.tvbox.api.service.IMediaSearchService
 import com.muedsa.tvbox.novipnoad.service.MainScreenService
 import com.muedsa.tvbox.novipnoad.service.MediaDetailService
 import com.muedsa.tvbox.novipnoad.service.MediaSearchService
-import com.muedsa.tvbox.tool.PluginCookieStore
+import com.muedsa.tvbox.tool.PluginCookieJar
 import com.muedsa.tvbox.tool.SharedCookieSaver
+import com.muedsa.tvbox.tool.createOkHttpClient
 
 class NoVipNoadPlugin(tvBoxContext: TvBoxContext) : IPlugin(tvBoxContext = tvBoxContext) {
 
@@ -20,10 +21,15 @@ class NoVipNoadPlugin(tvBoxContext: TvBoxContext) : IPlugin(tvBoxContext = tvBox
 
     override suspend fun onLaunched() {}
 
-    private val cookieStore by lazy { PluginCookieStore(saver = SharedCookieSaver(store = tvBoxContext.store)) }
-    private val mainScreenService by lazy { MainScreenService(cookieStore = cookieStore) }
-    private val mediaDetailService by lazy { MediaDetailService(cookieStore = cookieStore) }
-    private val mediaSearchService by lazy { MediaSearchService(cookieStore = cookieStore) }
+    private val okHttpClient by lazy {
+        createOkHttpClient(
+            debug = tvBoxContext.debug,
+            cookieJar = PluginCookieJar(saver = SharedCookieSaver(store = tvBoxContext.store))
+        )
+    }
+    private val mainScreenService by lazy { MainScreenService(okHttpClient = okHttpClient) }
+    private val mediaDetailService by lazy { MediaDetailService(okHttpClient = okHttpClient) }
+    private val mediaSearchService by lazy { MediaSearchService(okHttpClient = okHttpClient) }
 
     override fun provideMainScreenService(): IMainScreenService = mainScreenService
 
