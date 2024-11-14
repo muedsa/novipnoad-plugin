@@ -4,6 +4,7 @@ import com.muedsa.tvbox.api.data.MediaCard
 import com.muedsa.tvbox.api.data.MediaCardRow
 import com.muedsa.tvbox.api.service.IMainScreenService
 import com.muedsa.tvbox.novipnoad.NoVipNoadConst
+import com.muedsa.tvbox.tool.checkSuccess
 import com.muedsa.tvbox.tool.feignChrome
 import com.muedsa.tvbox.tool.get
 import com.muedsa.tvbox.tool.parseHtml
@@ -18,6 +19,7 @@ class MainScreenService(
         val body = "${NoVipNoadConst.URL}/".toRequestBuild()
             .feignChrome()
             .get(okHttpClient = okHttpClient)
+            .checkSuccess()
             .parseHtml()
             .body()
         return body.select("#body #content .smart-box[id]").map { boxEl ->

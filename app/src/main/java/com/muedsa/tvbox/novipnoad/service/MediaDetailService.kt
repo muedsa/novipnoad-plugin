@@ -15,6 +15,7 @@ import com.muedsa.tvbox.novipnoad.model.VKey
 import com.muedsa.tvbox.novipnoad.model.VideoUrlInfo
 import com.muedsa.tvbox.tool.ChromeUserAgent
 import com.muedsa.tvbox.tool.LenientJson
+import com.muedsa.tvbox.tool.checkSuccess
 import com.muedsa.tvbox.tool.decodeBase64
 import com.muedsa.tvbox.tool.feignChrome
 import com.muedsa.tvbox.tool.get
@@ -38,6 +39,7 @@ class MediaDetailService(
         val doc = pageUrl.toRequestBuild()
             .feignChrome()
             .get(okHttpClient = okHttpClient)
+            .checkSuccess()
             .parseHtml()
         val body = doc.body()
         val videoItemEl = body.selectFirst("#content .video-item")!!
@@ -207,6 +209,7 @@ class MediaDetailService(
         val body = pageUrl.toRequestBuild()
             .feignChrome(referer = "${NoVipNoadConst.URL}/")
             .get(okHttpClient = okHttpClient)
+            .checkSuccess()
             .parseHtml()
                 .body()
         val device = DEVICE_REGEX.find(body.html())?.groups?.get(1)?.value
@@ -242,6 +245,7 @@ class MediaDetailService(
             "https://player.novipnoad.net/v1/player.php?id=${vid}&device=$device".toRequestBuild()
                 .feignChrome(referer = referrer)
                 .get(okHttpClient = okHttpClient)
+                .checkSuccess()
                 .parseHtml()
                 .body()
         val jsApi = JSAPI_REGEX.find(body.html())?.groups?.get(1)?.value
@@ -261,6 +265,7 @@ class MediaDetailService(
         val jsText = jsUrl.toRequestBuild()
             .feignChrome(referer = referrer)
             .get(okHttpClient = okHttpClient)
+            .checkSuccess()
             .stringBody()
         if (!jsText.startsWith("var videoUrl=JSON.decrypt(\"")
             || !jsText.endsWith("\");")
