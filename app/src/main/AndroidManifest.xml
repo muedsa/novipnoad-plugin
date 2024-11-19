@@ -8,7 +8,7 @@
         android:supportsRtl="true"
         android:theme="@android:style/Theme.DeviceDefault" >
         <meta-data android:name="tv_box_plugin_key" android:value="com.muedsa.tvbox" />
-        <meta-data android:name="tv_box_plugin_api_version" android:value="6" />
+        <meta-data android:name="tv_box_plugin_api_version" android:value="7" />
         <meta-data android:name="tv_box_plugin_entry_point_impl" android:value="com.muedsa.tvbox.novipnoad.NoVipNoadPlugin"/>
     </application>
 
