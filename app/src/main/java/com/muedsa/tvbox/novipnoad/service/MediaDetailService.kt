@@ -194,7 +194,7 @@ class MediaDetailService(
         return MediaHttpSource(
             url = videoUrlInfo.quality[i].url,
             httpHeaders = mapOf(
-                "Referer" to "${NoVipNoadConst.URL}${episode.flag7!!}",
+                "Origin" to "https://player.novipnoad.net",
                 "User-Agent" to ChromeUserAgent
             )
         )
