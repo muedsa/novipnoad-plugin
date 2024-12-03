@@ -18,9 +18,11 @@ class MediaDetailServiceTest {
         check(detail.title.isNotEmpty())
         check(detail.detailUrl.isNotEmpty())
         check(detail.backgroundImageUrl.isNotEmpty())
-        checkMediaCard(detail.favoritedMediaCard, cardType = MediaCardType.STANDARD)
-        check(detail.favoritedMediaCard.cardWidth > 0)
-        check(detail.favoritedMediaCard.cardHeight > 0)
+        detail.favoritedMediaCard?.let { favoritedMediaCard ->
+            checkMediaCard(favoritedMediaCard, cardType = MediaCardType.STANDARD)
+            check(favoritedMediaCard.cardWidth > 0)
+            check(favoritedMediaCard.cardHeight > 0)
+        }
         check(detail.playSourceList.isNotEmpty())
         detail.playSourceList.forEach { mediaPlaySource ->
             check(mediaPlaySource.id.isNotEmpty())
