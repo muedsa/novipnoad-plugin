@@ -1,5 +1,7 @@
 package com.muedsa.tvbox.novipnoad.service
 
+import com.muedsa.tvbox.api.data.DanmakuData
+import com.muedsa.tvbox.api.data.DanmakuDataFlow
 import com.muedsa.tvbox.api.data.MediaCard
 import com.muedsa.tvbox.api.data.MediaCardRow
 import com.muedsa.tvbox.api.data.MediaCardType
@@ -347,4 +349,9 @@ class MediaDetailService(
             return resultBuilder.toString()
         }
     }
+
+    override suspend fun getEpisodeDanmakuDataList(episode: MediaEpisode): List<DanmakuData> =
+        emptyList()
+
+    override suspend fun getEpisodeDanmakuDataFlow(episode: MediaEpisode): DanmakuDataFlow? = null
 }
