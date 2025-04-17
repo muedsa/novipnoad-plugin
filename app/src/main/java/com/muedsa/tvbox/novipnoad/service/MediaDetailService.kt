@@ -219,7 +219,7 @@ class MediaDetailService(
             .html()
         val device = DEVICE_REGEX.find(bodyHtml)?.groups?.get(1)?.value
             ?: throw RuntimeException("解析播放信息失败 device")
-        var matchGroups = PARAMS_FOR_DECODE_V_KEY_REGEX.find(bodyHtml)?.groups
+        val matchGroups = PARAMS_FOR_DECODE_V_KEY_REGEX.find(bodyHtml)?.groups
             ?: throw RuntimeException("解析播放信息失败 vkey params")
         val h = matchGroups[1]?.value ?: throw RuntimeException("解析播放信息失败 vkey params.h")
         val n = matchGroups[2]?.value ?: throw RuntimeException("解析播放信息失败 vkey params.n")
@@ -263,32 +263,24 @@ class MediaDetailService(
             .get(okHttpClient = okHttpClient)
             .checkSuccess()
             .stringBody()
-        // location[_0x31a0e5(0x12f,'svxW')]==_0x31a0e5(0x114,'ee62')?_0x31a0e5(0x128,'8xWp')
-        // _0x31a0e5(0x128,'8xWp')
-        // 0x128 = 296, 296 % 40 = 16, _0xada66f[16] = 'jSoEjfpdSmkMW5Dw'
-//        val decryptKey = RC4("8xWp".toByteArray(Charsets.ISO_8859_1))
-//            .decrypt("jSoEjfpdSmkMW5Dw".decodeFromJsjiami()) // e11ed29b
+        // location[_0x3d3628(0xc9,'R)wj')][_0x3d3628(0xb9,'%(hT')](/player.novipnoad.(com|net|cc|uk|us|org)/)!=null?_0x3d3628(0xb3,'smXA'):_0x3d3628(0xd1,'ku@n')
+        // _0x3d3628(0xb3, 'smXA')
         val matchGroups = JQ_KEY_REGEX.find(jqText)?.groups
             ?: throw RuntimeException("解析播放信息失败 JQ fun")
-        val dataPos = matchGroups[2]?.value?.toInt(16)
-            ?: throw RuntimeException("解析播放信息失败 JQ fun dataPos")
         val dataKey = matchGroups[3]?.value
             ?: throw RuntimeException("解析播放信息失败 JQ fun dataKey")
         val dataFun = JQ_DATA_FUN_REGEX.find(jqText)?.groups?.get(3)?.value
             ?: throw RuntimeException("解析播放信息失败 JQ dataFun")
-        val dataArr = JQ_DATA_ARR_REGEX.findAll(dataFun).map {
+        val dataArr = JQ_DATA_ARR_REGEX.findAll(dataFun).mapNotNull {
             it.groups[1]?.value
         }.toList()
         if (dataArr.isEmpty())  throw RuntimeException("解析播放信息失败 JQ dataArr")
-        val data = dataArr[dataPos % dataArr.size]
-            ?: throw RuntimeException("解析播放信息失败 JQ data")
-        val decryptKey = RC4(dataKey.toByteArray(Charsets.ISO_8859_1))
-            .decrypt(data.decodeFromJsjiami()) // e11ed29b
         return step3(
             jsApi = jsApi,
             vKey = vKey,
             referrer = "https://player.novipnoad.net/",
-            decryptKey = decryptKey
+            dataArr = dataArr,
+            dataKey = dataKey,
         )
     }
 
@@ -296,7 +288,8 @@ class MediaDetailService(
         jsApi: String,
         vKey: VKey,
         referrer: String,
-        decryptKey: ByteArray
+        dataArr: List<String>,
+        dataKey: String,
     ): VideoUrlInfo {
         delay(200)
         val jsUrl = jsApi.toHttpUrl().newBuilder()
@@ -319,9 +312,20 @@ class MediaDetailService(
         }
         val videoUrlData = jsText.removePrefix("var videoUrl=JSON.decrypt(\"")
             .removeSuffix("\");")
-        val videoUrlJson = RC4(decryptKey)
-            .decrypt(videoUrlData.decodeBase64())
-            .toString(Charsets.ISO_8859_1)
+        var videoUrlJson = ""
+        for (dataStr in dataArr) {
+            val decryptKey = RC4(dataKey.toByteArray(Charsets.ISO_8859_1))
+                .decrypt(dataStr.decodeFromJsjiami()) // e11ed29b
+            videoUrlJson = RC4(decryptKey)
+                .decrypt(videoUrlData.decodeBase64())
+                .toString(Charsets.ISO_8859_1)
+            if (videoUrlJson.startsWith("{") && videoUrlJson.endsWith("}")) {
+                break
+            }
+        }
+        if (!videoUrlJson.startsWith("{") || !videoUrlJson.endsWith("}")) {
+            throw RuntimeException("解析播放信息失败 decryptKey")
+        }
         return LenientJson.decodeFromString<VideoUrlInfo>(videoUrlJson)
     }
 
@@ -335,7 +339,7 @@ class MediaDetailService(
         val JSAPI_REGEX = "const jsapi = '(.*?)';".toRegex()
         val V_KEY_JS_REGEX = "\\{ckey:'(\\w+)',ref:'(.*?)',ip:'(.*?)',time:'(\\d+)'\\}".toRegex()
         val JQ_KEY_REGEX =
-            "location\\[(\\w+)\\(0x\\w+,'\\w+'\\)\\]==\\1\\(0x\\w+,'\\w+'\\)\\?\\1\\(0x(\\w+),'(\\w+)'\\)".toRegex()
+            "location\\[(\\w+)\\(0x\\w+,'[^']+'\\)\\]\\[\\1\\(0x\\w+,'[^']+'\\)\\]\\(/player\\.novipnoad\\.\\([a-z|]+\\)/\\)!=null\\?\\1\\(0x(\\w+),'([^']+)'\\)".toRegex()
         val JQ_DATA_FUN_REGEX = "function (_0x\\w+)\\(\\)\\{var (_0x\\w+)=\\(function\\(\\)\\{return(.*?)\\}\\(\\)\\);\\1=function\\(\\)\\{return \\2;\\};return \\1\\(\\);\\}".toRegex()
         val JQ_DATA_ARR_REGEX = "'([^']+)'|(_0x\\w+),?".toRegex()
 
