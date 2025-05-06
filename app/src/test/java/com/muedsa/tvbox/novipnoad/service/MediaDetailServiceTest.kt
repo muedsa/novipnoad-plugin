@@ -52,7 +52,7 @@ class MediaDetailServiceTest {
     @Test
     fun decode_test() {
         val h = "yUGnymOnyGGnsymnyGOnyUGnGymnyOUnsyGnyOUnyOUnymOnyGOnyGGnUmsnyOsnyGOnyGynssUnsyUnsyGnGymnyOUnsyGnyOsnOsUnyOsnsyGnyGmnGUUnGUOnyUmnymsnsyGnyUUnGUOnGsGnOssnUmsnUmmnOyynGymnyOUnyOsnyGynymOnyGGnsyUnymOnsyOnyUUnGUUnyUynssynymsnsyGnyUUnOGUnGUOnGyOnGyUnOmmnGyOnsymnOmGnGyOnGysnssUnOGOnOGGnsyGnOGOnOGOnGyynGyUnsyOnssynssUnOmmnssUnOGmnssynsymnGyynOmOnsyGnOGOnGysnsyOnsyOnsyGnGyOnGysnGysnGyUnOmGnGyynOGOnGyOnGUOnGsGnyGynsyGnsyOnOGUnGUOnGyGnyOsnyUmnGyGnymsnyGOnyGynsyGnssUnGyGnGyUnOmmnOGGnOmGnGyOnGysnGymnsysnyOsnyGmnymynGUOnGsGnymOnyGUnOGUnGUOnGyUnOGGnGyOnGymnGyUnOGmnGyynGymnGyUnOGmnOGmnGymnGyUnGyynGysnGUOnGsGnyOsnymOnyGmnsyGnOGUnGUOnGyUnOGmnGyynOGOnGyynOmGnGyUnGyynOGmnGyynGUOnyssnGUsnGUsnOGsn"
-        val encode =MediaDetailService.decode(h, "mGOUsynwS", 5, fromBase = 6, toBase = 13)
+        val encode =MediaDetailService.decodeVKeyJS(h, "mGOUsynwS", 5, fromBase = 6, toBase = 13)
         println(encode)
     }
 }

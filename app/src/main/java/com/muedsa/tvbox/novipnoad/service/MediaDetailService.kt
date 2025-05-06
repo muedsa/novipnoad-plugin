@@ -219,26 +219,59 @@ class MediaDetailService(
             .html()
         val device = DEVICE_REGEX.find(bodyHtml)?.groups?.get(1)?.value
             ?: throw RuntimeException("解析播放信息失败 device")
-        val matchGroups = PARAMS_FOR_DECODE_V_KEY_REGEX.find(bodyHtml)?.groups
-            ?: throw RuntimeException("解析播放信息失败 vkey params")
-        val h = matchGroups[1]?.value ?: throw RuntimeException("解析播放信息失败 vkey params.h")
-        val n = matchGroups[2]?.value ?: throw RuntimeException("解析播放信息失败 vkey params.n")
-        val t = matchGroups[3]?.value?.toInt()
-            ?: throw RuntimeException("解析播放信息失败 vkey params.t")
-        val fromBase = matchGroups[4]?.value?.toInt()
-            ?: throw RuntimeException("解析播放信息失败 vkey params.e")
-        val toBase = TO_BASE_FOR_DECODE_V_KEY_REGEX.find(bodyHtml)?.groups?.get(1)?.value?.toInt()
+        var matchGroups = ARG_NAMES_FOR_DECODE_V_KEY_FUNCTION_REGEX.find(bodyHtml)?.groups
+            ?: throw RuntimeException("解析播放信息失败 vkey fun arg name")
+        var argReplaceStr = ""
+        val argNames = matchGroups.map {
+            it?.value ?: throw RuntimeException("解析播放信息失败 vkey fun arg name")
+        }.toMutableList().also {
+            it.removeAt(0)
+            argReplaceStr = it.last()
+            it.removeAt(it.size - 1)
+        }
+        val argReplaceMap = mutableMapOf<String, String>()
+        ARG_REPLACE_REGEX.findAll(argReplaceStr).forEach {
+            argReplaceMap.put(it.groups[1]!!.value, it.groups[2]!!.value)
+        }
+        matchGroups = ARG_VALUES_FOR_DECODE_V_KEY_FUNCTION_REGEX.find(bodyHtml)?.groups
+            ?: throw RuntimeException("解析播放信息失败 vkey fun arg value")
+        val argValues = matchGroups.map {
+            it?.value ?: throw RuntimeException("解析播放信息失败 vkey fun arg value")
+        }.toMutableList().also {
+            it.removeAt(0)
+        }
+        matchGroups = DATA_REPLACE_MAP_FOR_DECODE_V_KEY_REGEX.find(bodyHtml)?.groups
+            ?: throw RuntimeException("解析播放信息失败 vkey data_replaceMap arg name")
+        val dataArgName = matchGroups[1]?.value
+            ?: throw RuntimeException("解析播放信息失败 vkey data arg name")
+        val replaceMapArgName = matchGroups[3]?.value
+            ?: throw RuntimeException("解析播放信息失败 vkey replaceMap arg name")
+        matchGroups = TO_BASE_FOR_DECODE_V_KEY_REGEX.find(bodyHtml)?.groups
             ?: throw RuntimeException("解析播放信息失败 vkey toBase")
-        val vKeyJs = decodeVKey(h, n, t, fromBase = fromBase, toBase = toBase)
-        val vkMatchGroups = V_KEY_JS_REGEX.find(vKeyJs)?.groups
-            ?: throw RuntimeException("解析播放信息失败 vkey js")
-        val vKey = VKey(
-            ckey = vkMatchGroups[1]?.value ?: throw RuntimeException("解析播放信息失败 vkey ckey"),
-            ref = vkMatchGroups[2]?.value ?: throw RuntimeException("解析播放信息失败 vkey ref"),
-            ip = vkMatchGroups[3]?.value ?: throw RuntimeException("解析播放信息失败 vkey ip"),
-            time = vkMatchGroups[4]?.value ?: throw RuntimeException("解析播放信息失败 vkey time")
+        val fromBaseArgName = matchGroups[1]?.value
+            ?: throw RuntimeException("解析播放信息失败 vkey fromBaseArgName")
+        val toBase = matchGroups[2]?.value?.toInt()
+            ?: throw RuntimeException("解析播放信息失败 vkey toBase")
+        val charCodeSaltArgName = matchGroups[3]?.value
+            ?: throw RuntimeException("解析播放信息失败 vkey charCodeSaltArgName")
+        val vKeyJs = decodeVKeyJS(
+            data = decodeFunArgStringValue(dataArgName, argNames, argValues, argReplaceMap),
+            replaceMap = decodeFunArgStringValue(
+                replaceMapArgName,
+                argNames,
+                argValues,
+                argReplaceMap
+            ),
+            charCodeSalt = decodeFunArgIntValue(
+                charCodeSaltArgName,
+                argNames,
+                argValues,
+                argReplaceMap
+            ),
+            fromBase = decodeFunArgIntValue(fromBaseArgName, argNames, argValues, argReplaceMap),
+            toBase = toBase
         )
-        return step2(vid = vid, device = device, vKey = vKey, referrer = pageUrl)
+        return step2(vid = vid, device = device, vKey = parseVKey(vKeyJs), referrer = pageUrl)
     }
 
     private suspend fun step2(
@@ -332,10 +365,17 @@ class MediaDetailService(
     companion object {
         val PLAY_INFO_REGEX = "<script>window.playInfo=(\\{.*?\\});</script>".toRegex()
         val DEVICE_REGEX = "params\\['device'] = '(\\w+)'".toRegex()
+
+        // while(n[i]!==h[a]){{s+=n[i];i++}}
+        val DATA_REPLACE_MAP_FOR_DECODE_V_KEY_REGEX =
+            "while\\(([a-z])\\[([a-z])\\]!==([a-z])\\[[a-z]\\]\\)\\{+[a-z]\\+=([a-z])\\[\\2\\];\\2\\+\\+\\}+".toRegex()
         val TO_BASE_FOR_DECODE_V_KEY_REGEX =
-            "\\+=String.fromCharCode\\(\\w+\\(\\w+,\\w+,(\\d+)\\)-".toRegex()
-        val PARAMS_FOR_DECODE_V_KEY_REGEX =
-            "return decodeURIComponent\\(escape\\(r\\)\\)\\}\\(\"(\\w+)\",\\d+,\"(\\w+)\",(\\d+),(\\d+),\\d+\\)\\)".toRegex()
+            "\\+=String.fromCharCode\\(\\w+\\(\\w+,(\\w+),(\\d+)\\)-(\\w+)\\)".toRegex()
+        val ARG_NAMES_FOR_DECODE_V_KEY_FUNCTION_REGEX =
+            "eval\\(function\\(([a-z]),([a-z]),([a-z]),([a-z]),([a-z]),([a-z])\\)(.*?)for\\(".toRegex()
+        val ARG_REPLACE_REGEX = "var ([a-z])=([a-z]);".toRegex()
+        val ARG_VALUES_FOR_DECODE_V_KEY_FUNCTION_REGEX =
+            "return decodeURIComponent\\(escape\\([a-z]\\)\\)\\}\\((\"\\w+\"|\\d+),(\"\\w+\"|\\d+),(\"\\w+\"|\\d+),(\"\\w+\"|\\d+),(\"\\w+\"|\\d+),(\"\\w+\"|\\d+)\\)\\)".toRegex()
         val JSAPI_REGEX = "const jsapi = '(.*?)';".toRegex()
         val V_KEY_JS_REGEX = "\\{ckey:'(\\w+)',ref:'(.*?)',ip:'(.*?)',time:'(\\d+)'\\}".toRegex()
         val JQ_KEY_REGEX =
@@ -343,35 +383,89 @@ class MediaDetailService(
         val JQ_DATA_FUN_REGEX = "function (_0x\\w+)\\(\\)\\{var (_0x\\w+)=\\(function\\(\\)\\{return(.*?)\\}\\(\\)\\);\\1=function\\(\\)\\{return \\2;\\};return \\1\\(\\);\\}".toRegex()
         val JQ_DATA_ARR_REGEX = "'([^']+)'|(_0x\\w+),?".toRegex()
 
-        fun decode(h: String, n: String, t: Int, fromBase: Int, toBase: Int): String {
+        fun decodeFunArgIntValue(
+            argName: String,
+            argNames: List<String>,
+            argValues: List<String>,
+            argReplaceMap: Map<String, String>,
+        ): Int {
+            val realArgName = argReplaceMap.getOrDefault(argName, argName)
+            val index = argNames.indexOf(realArgName)
+            if (index < 0) {
+                throw RuntimeException("not fun arg [${argName}] value from: $argNames, $argReplaceMap")
+            }
+            return argValues[index].toInt()
+        }
+
+        fun decodeFunArgStringValue(
+            argName: String,
+            argNames: List<String>,
+            argValues: List<String>,
+            argReplaceMap: Map<String, String>,
+        ): String {
+            val realArgName = argReplaceMap.getOrDefault(argName, argName)
+            val index = argNames.indexOf(realArgName)
+            if (index < 0) {
+                throw RuntimeException("not fun arg [${argName}] value from: $argNames, $argReplaceMap")
+            }
+            return argValues[index].removePrefix("\"").removeSuffix("\"")
+        }
+
+        fun decodeVKeyJS(
+            data: String,
+            replaceMap: String,
+            charCodeSalt: Int,
+            fromBase: Int,
+            toBase: Int
+        ): String {
             var result = ""
             var i = 0
-            while (i < h.length) {
+            while (i < data.length) {
                 var s = ""
-                while (i < h.length && h[i] != n[fromBase]) {
-                    s += h[i]
+                while (i < data.length && data[i] != replaceMap[fromBase]) {
+                    s += data[i]
                     i++
                 }
-                for (j in n.indices) {
-                    s = s.replace(n[j].toString(), j.toString())
+                for (j in replaceMap.indices) {
+                    s = s.replace(replaceMap[j].toString(), j.toString())
                 }
-                val charCode = BaseConverter.convert(s, fromBase, toBase).toInt() - t
+                val charCode = BaseConverter.convert(s, fromBase, toBase).toInt() - charCodeSalt
                 result += Character.toChars(charCode).concatToString()
                 i++
             }
             return result
         }
 
-        private fun decodeVKey(h: String, n: String, t: Int, fromBase: Int, toBase: Int): String {
-            val result = decode(h, n, t, fromBase = fromBase, toBase = toBase)
-            if (!result.startsWith("window.sessionStorage.setItem('vkey',JSON.stringify({")) {
-                throw RuntimeException("解析播放信息失败 vkey")
+        private fun parseVKey(vKeyJs: String): VKey {
+            if (vKeyJs.startsWith("window.sessionStorage.setItem('vkey','{")
+                && vKeyJs.endsWith("}');")
+            ) {
+                return LenientJson.decodeFromString<VKey>(
+                    vKeyJs
+                        .removePrefix("window.sessionStorage.setItem('vkey','")
+                        .removeSuffix("');")
+                )
             }
-            if (!result.endsWith("}));")) {
-                throw RuntimeException("解析播放信息失败 vkey")
+            if (vKeyJs.startsWith("window.sessionStorage.setItem('vkey',JSON.stringify({") && vKeyJs.endsWith(
+                    "}));"
+                )
+            ) {
+                val vkMatchGroups = V_KEY_JS_REGEX.find(
+                    vKeyJs.removePrefix("window.sessionStorage.setItem('vkey',JSON.stringify(")
+                        .removeSuffix("));")
+                )?.groups ?: throw RuntimeException("解析播放信息失败 vkey js")
+                return VKey(
+                    ckey = vkMatchGroups[1]?.value
+                        ?: throw RuntimeException("解析播放信息失败 vkey ckey"),
+                    ref = vkMatchGroups[2]?.value
+                        ?: throw RuntimeException("解析播放信息失败 vkey ref"),
+                    ip = vkMatchGroups[3]?.value
+                        ?: throw RuntimeException("解析播放信息失败 vkey ip"),
+                    time = vkMatchGroups[4]?.value
+                        ?: throw RuntimeException("解析播放信息失败 vkey time")
+                )
             }
-            return result.removePrefix("window.sessionStorage.setItem('vkey',JSON.stringify(")
-                .removeSuffix("));")
+            throw RuntimeException("解析播放信息失败 vkey")
         }
 
         @OptIn(ExperimentalStdlibApi::class)
