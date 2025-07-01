@@ -38,6 +38,8 @@ class MediaDetailService(
     private val okHttpClient: OkHttpClient
 ) : IMediaDetailService {
 
+    private val key = getKeyFormGithubKeyFile()
+
     override suspend fun getDetailData(mediaId: String, detailUrl: String): MediaDetail {
         val pageUrl = "${NoVipNoadConst.URL}$detailUrl"
         val doc = pageUrl.toRequestBuild()
@@ -274,6 +276,94 @@ class MediaDetailService(
         return step2(vid = vid, device = device, vKey = parseVKey(vKeyJs), referrer = pageUrl)
     }
 
+//    private suspend fun step2(
+//        vid: String,
+//        device: String,
+//        vKey: VKey,
+//        referrer: String
+//    ): VideoUrlInfo {
+//        delay(200)
+//        val body =
+//            "https://player.novipnoad.net/v1/player.php?id=${vid}&device=$device".toRequestBuild()
+//                .feignChrome(referer = referrer)
+//                .get(okHttpClient = okHttpClient)
+//                .checkSuccess()
+//                .parseHtml()
+//                .body()
+//        val jsApi = JSAPI_REGEX.find(body.html())?.groups?.get(1)?.value
+//            ?: throw RuntimeException("解析播放信息失败 jsapi")
+//        val jqText = "https://player.novipnoad.net/js/jquery.min.js"
+//            .toRequestBuild()
+//            .feignChrome(referer = referrer)
+//            .get(okHttpClient = okHttpClient)
+//            .checkSuccess()
+//            .stringBody()
+//        // location[_0x3d3628(0xc9,'R)wj')][_0x3d3628(0xb9,'%(hT')](/player.novipnoad.(com|net|cc|uk|us|org)/)!=null?_0x3d3628(0xb3,'smXA'):_0x3d3628(0xd1,'ku@n')
+//        // _0x3d3628(0xb3, 'smXA')
+//        val matchGroups = JQ_KEY_REGEX.find(jqText)?.groups
+//            ?: throw RuntimeException("解析播放信息失败 JQ fun")
+//        val dataKey = matchGroups[3]?.value
+//            ?: throw RuntimeException("解析播放信息失败 JQ fun dataKey")
+//        val dataFun = JQ_DATA_FUN_REGEX.find(jqText)?.groups?.get(3)?.value
+//            ?: throw RuntimeException("解析播放信息失败 JQ dataFun")
+//        val dataArr = JQ_DATA_ARR_REGEX.findAll(dataFun).mapNotNull {
+//            it.groups[1]?.value
+//        }.toList()
+//        if (dataArr.isEmpty())  throw RuntimeException("解析播放信息失败 JQ dataArr")
+//        return step3(
+//            jsApi = jsApi,
+//            vKey = vKey,
+//            referrer = "https://player.novipnoad.net/",
+//            dataArr = dataArr,
+//            dataKey = dataKey,
+//        )
+//    }
+//
+//    private suspend fun step3(
+//        jsApi: String,
+//        vKey: VKey,
+//        referrer: String,
+//        dataArr: List<String>,
+//        dataKey: String,
+//    ): VideoUrlInfo {
+//        delay(200)
+//        val jsUrl = jsApi.toHttpUrl().newBuilder()
+//            .addQueryParameter("ckey", vKey.ckey.uppercase(Locale.getDefault()))
+//            .addQueryParameter("ref", vKey.ref)
+//            .addQueryParameter("ip", vKey.ip)
+//            .addQueryParameter("time", vKey.time)
+//            .build()
+//            .toString()
+//        val jsText = jsUrl.toRequestBuild()
+//            .feignChrome(referer = referrer)
+//            .get(okHttpClient = okHttpClient)
+//            .checkSuccess()
+//            .stringBody()
+//        if (!jsText.startsWith("var videoUrl=JSON.decrypt(\"")
+//            || !jsText.endsWith("\");")
+//        ) {
+//            Timber.e("解析播放信息失败 videoUrl: $jsText")
+//            throw RuntimeException("解析播放信息失败 videoUrl")
+//        }
+//        val videoUrlData = jsText.removePrefix("var videoUrl=JSON.decrypt(\"")
+//            .removeSuffix("\");")
+//        var videoUrlJson = ""
+//        for (dataStr in dataArr) {
+//            val decryptKey = RC4(dataKey.toByteArray(Charsets.ISO_8859_1))
+//                .decrypt(dataStr.decodeFromJsjiami()) // e11ed29b
+//            videoUrlJson = RC4(decryptKey)
+//                .decrypt(videoUrlData.decodeBase64())
+//                .toString(Charsets.ISO_8859_1)
+//            if (videoUrlJson.startsWith("{") && videoUrlJson.endsWith("}")) {
+//                break
+//            }
+//        }
+//        if (!videoUrlJson.startsWith("{") || !videoUrlJson.endsWith("}")) {
+//            throw RuntimeException("解析播放信息失败 decryptKey")
+//        }
+//        return LenientJson.decodeFromString<VideoUrlInfo>(videoUrlJson)
+//    }
+
     private suspend fun step2(
         vid: String,
         device: String,
@@ -290,39 +380,17 @@ class MediaDetailService(
                 .body()
         val jsApi = JSAPI_REGEX.find(body.html())?.groups?.get(1)?.value
             ?: throw RuntimeException("解析播放信息失败 jsapi")
-        val jqText = "https://player.novipnoad.net/js/jquery.min.js"
-            .toRequestBuild()
-            .feignChrome(referer = referrer)
-            .get(okHttpClient = okHttpClient)
-            .checkSuccess()
-            .stringBody()
-        // location[_0x3d3628(0xc9,'R)wj')][_0x3d3628(0xb9,'%(hT')](/player.novipnoad.(com|net|cc|uk|us|org)/)!=null?_0x3d3628(0xb3,'smXA'):_0x3d3628(0xd1,'ku@n')
-        // _0x3d3628(0xb3, 'smXA')
-        val matchGroups = JQ_KEY_REGEX.find(jqText)?.groups
-            ?: throw RuntimeException("解析播放信息失败 JQ fun")
-        val dataKey = matchGroups[3]?.value
-            ?: throw RuntimeException("解析播放信息失败 JQ fun dataKey")
-        val dataFun = JQ_DATA_FUN_REGEX.find(jqText)?.groups?.get(3)?.value
-            ?: throw RuntimeException("解析播放信息失败 JQ dataFun")
-        val dataArr = JQ_DATA_ARR_REGEX.findAll(dataFun).mapNotNull {
-            it.groups[1]?.value
-        }.toList()
-        if (dataArr.isEmpty())  throw RuntimeException("解析播放信息失败 JQ dataArr")
         return step3(
             jsApi = jsApi,
             vKey = vKey,
             referrer = "https://player.novipnoad.net/",
-            dataArr = dataArr,
-            dataKey = dataKey,
         )
     }
 
     private suspend fun step3(
         jsApi: String,
         vKey: VKey,
-        referrer: String,
-        dataArr: List<String>,
-        dataKey: String,
+        referrer: String
     ): VideoUrlInfo {
         delay(200)
         val jsUrl = jsApi.toHttpUrl().newBuilder()
@@ -345,21 +413,37 @@ class MediaDetailService(
         }
         val videoUrlData = jsText.removePrefix("var videoUrl=JSON.decrypt(\"")
             .removeSuffix("\");")
-        var videoUrlJson = ""
-        for (dataStr in dataArr) {
-            val decryptKey = RC4(dataKey.toByteArray(Charsets.ISO_8859_1))
-                .decrypt(dataStr.decodeFromJsjiami()) // e11ed29b
-            videoUrlJson = RC4(decryptKey)
-                .decrypt(videoUrlData.decodeBase64())
-                .toString(Charsets.ISO_8859_1)
-            if (videoUrlJson.startsWith("{") && videoUrlJson.endsWith("}")) {
-                break
-            }
-        }
+        val videoUrlJson = RC4(key.toByteArray(Charsets.ISO_8859_1))
+            .decrypt(videoUrlData.decodeBase64())
+            .toString(Charsets.ISO_8859_1)
         if (!videoUrlJson.startsWith("{") || !videoUrlJson.endsWith("}")) {
             throw RuntimeException("解析播放信息失败 decryptKey")
         }
         return LenientJson.decodeFromString<VideoUrlInfo>(videoUrlJson)
+    }
+
+    private fun getKeyFormGithubKeyFile(): String {
+        var key = requestKeyFromGithubUrl(KEY_GITHUB_URL_1)
+        if (key.isBlank()) {
+            key = requestKeyFromGithubUrl(KEY_GITHUB_URL_2)
+        }
+        if (key.isBlank()) {
+            key = requestKeyFromGithubUrl(KEY_GITHUB_URL_3)
+        }
+        if (key.isBlank()) {
+            key = "ce974576"
+        }
+        return key
+    }
+
+    private fun requestKeyFromGithubUrl(url: String): String {
+        return try {
+            url.toRequestBuild()
+                .feignChrome()
+                .get(okHttpClient = okHttpClient)
+                .checkSuccess()
+                .stringBody()
+        } catch (_: Throwable) { "" }
     }
 
     companion object {
@@ -382,6 +466,10 @@ class MediaDetailService(
             "location\\[(\\w+)\\(0x\\w+,'[^']+'\\)\\]\\[\\1\\(0x\\w+,'[^']+'\\)\\]\\(/player\\.novipnoad\\.\\([a-z|]+\\)/\\)!=null\\?\\1\\(0x(\\w+),'([^']+)'\\)".toRegex()
         val JQ_DATA_FUN_REGEX = "function (_0x\\w+)\\(\\)\\{var (_0x\\w+)=\\(function\\(\\)\\{return(.*?)\\}\\(\\)\\);\\1=function\\(\\)\\{return \\2;\\};return \\1\\(\\);\\}".toRegex()
         val JQ_DATA_ARR_REGEX = "'([^']+)'|(_0x\\w+),?".toRegex()
+
+        const val KEY_GITHUB_URL_1 = "https://ghfast.top/https://raw.githubusercontent.com/muedsa/novipnoad-plugin/refs/heads/main/key"
+        const val KEY_GITHUB_URL_2 = "https://gh-proxy.com/raw.githubusercontent.com/muedsa/novipnoad-plugin/refs/heads/main/key"
+        const val KEY_GITHUB_URL_3 = "https://raw.githubusercontent.com/muedsa/novipnoad-plugin/refs/heads/main/key"
 
         fun decodeFunArgIntValue(
             argName: String,
