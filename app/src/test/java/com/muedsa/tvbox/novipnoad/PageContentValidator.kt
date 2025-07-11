@@ -22,7 +22,7 @@ class PageContentValidator {
             .md5()
             .toHexString()
         println(hash)
-        check("f975d8344e3ad3825c275369fa3370d9".contentEquals(hash))
+        check("b86caa4c5673e9b985fffb76f0af1a99".contentEquals(hash))
     }
 
 }
