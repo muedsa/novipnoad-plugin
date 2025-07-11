@@ -25,6 +25,7 @@ jobs:
       - name: Build with Gradle
         run: ./gradlew :app:testReleaseUnitTest --tests "com.muedsa.tvbox.novipnoad.PageContentValidator"
       - name: Upload validate result
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: test-artifact
