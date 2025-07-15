@@ -14,7 +14,7 @@ class PageContentValidator {
 
     @Test
     fun jq_valid() {
-        val expectedHash = "b86caa4c5673e9b985fffb76f0af1a99"
+        val expectedHash = "f975d8344e3ad3825c275369fa3370d9"
         val hash = "https://player.novipnoad.net/js/jquery.min.js".toRequestBuild()
             .feignChrome()
             .get(okHttpClient = createOkHttpClient(debug = true))
