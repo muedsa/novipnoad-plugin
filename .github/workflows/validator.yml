@@ -31,6 +31,7 @@ jobs:
           name: test-artifact
           path: app/build/reports/tests/testReleaseUnitTest
       - name: Report
+        if: ${{ always() }}
         uses: FlickerSoul/android-test-report-actions@v1.3.1
         with:
           working-directory: "./app/build/test-results/testReleaseUnitTest"
