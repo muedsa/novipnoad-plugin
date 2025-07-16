@@ -25,8 +25,13 @@ jobs:
       - name: Build with Gradle
         run: ./gradlew :app:testReleaseUnitTest --tests "com.muedsa.tvbox.novipnoad.PageContentValidator"
       - name: Upload validate result
-        if: always()
+        if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
           name: test-artifact
           path: app/build/reports/tests/testReleaseUnitTest
+      - name: Report
+        uses: FlickerSoul/android-test-report-actions@v1.3.1
+        with:
+          working-directory: "./app/build/test-results/testReleaseUnitTest"
+        
