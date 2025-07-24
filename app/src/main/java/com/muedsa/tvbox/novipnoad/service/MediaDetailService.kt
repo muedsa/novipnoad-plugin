@@ -67,12 +67,14 @@ class MediaDetailService(
             description = description,
             detailUrl = detailUrl,
             backgroundImageUrl = imgUrl,
+            backgroundImageHttpHeaders = NoVipNoadConst.IMAGE_HTTP_HEADERS,
             playSourceList = getMediaPlaySource(body = body, title = title, pageUrl = pageUrl),
             favoritedMediaCard = SavedMediaCard(
                 id = mediaId,
                 title = title,
                 detailUrl = detailUrl,
                 coverImageUrl = imgUrl,
+                coverImageHttpHeaders = NoVipNoadConst.IMAGE_HTTP_HEADERS,
                 cardWidth = NoVipNoadConst.CARD_WIDTH,
                 cardHeight = NoVipNoadConst.CARD_HEIGHT,
             ),
@@ -160,7 +162,8 @@ class MediaDetailService(
                         id = detailUrl,
                         title = it.selectFirst(".item-head h3")!!.text().trim(),
                         detailUrl = detailUrl,
-                        coverImageUrl = imgEl.attr("data-original")
+                        coverImageUrl = imgEl.attr("data-original"),
+                        coverImageHttpHeaders = NoVipNoadConst.IMAGE_HTTP_HEADERS,
                     )
                 }
             if (navItemCards.isEmpty()) {

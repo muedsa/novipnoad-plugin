@@ -1,7 +1,14 @@
 package com.muedsa.tvbox.novipnoad
 
+import com.muedsa.tvbox.tool.ChromeUserAgent
+
 object NoVipNoadConst {
     const val URL = "https://www.novipnoad.net"
+
+    val IMAGE_HTTP_HEADERS = mapOf(
+        "Referer" to listOf("$URL/"),
+        "User-Agent" to listOf(ChromeUserAgent),
+    )
 
     const val CARD_WIDTH = 273
     const val CARD_HEIGHT = 150

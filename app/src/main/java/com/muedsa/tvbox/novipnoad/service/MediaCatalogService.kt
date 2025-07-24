@@ -45,7 +45,8 @@ class MediaCatalogService(
                 id = detailUrl,
                 title = it.selectFirst(".item-head h3")!!.text().trim(),
                 detailUrl = detailUrl,
-                coverImageUrl = imgEl.attr("data-original")
+                coverImageUrl = imgEl.attr("data-original"),
+                coverImageHttpHeaders = NoVipNoadConst.IMAGE_HTTP_HEADERS,
             )
         }
         val prevUrl =

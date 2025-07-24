@@ -35,6 +35,7 @@ class MediaSearchService(
                     title = it.selectFirst(".item-head h3")!!.text().trim(),
                     detailUrl = detailUrl,
                     coverImageUrl = imgEl.attr("data-original"),
+                    coverImageHttpHeaders = NoVipNoadConst.IMAGE_HTTP_HEADERS,
                     subTitle = it.selectFirst(".blog-excerpt")?.text()?.trim()
                 )
             }
