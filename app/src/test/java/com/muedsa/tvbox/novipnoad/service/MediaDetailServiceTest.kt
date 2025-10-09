@@ -6,7 +6,12 @@ import com.muedsa.tvbox.novipnoad.checkMediaCard
 import com.muedsa.tvbox.novipnoad.checkMediaCardRow
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [28])
 class MediaDetailServiceTest {
 
     private val service = TestPlugin.provideMediaDetailService()

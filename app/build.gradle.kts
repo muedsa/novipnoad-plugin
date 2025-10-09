@@ -83,6 +83,8 @@ dependencies {
     testImplementation(project(":api"))
     testImplementation(libs.junit4)
     testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.androidx.test.core)
+    testImplementation(libs.robolectric)
 }
 
 tasks.withType<DexMergingTask> {
