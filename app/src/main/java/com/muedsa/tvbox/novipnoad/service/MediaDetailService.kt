@@ -15,7 +15,6 @@ import com.muedsa.tvbox.novipnoad.NoVipNoadConst
 import com.muedsa.tvbox.novipnoad.model.PlayInfo
 import com.muedsa.tvbox.novipnoad.model.VKey
 import com.muedsa.tvbox.novipnoad.model.VideoUrlInfo
-import com.muedsa.tvbox.novipnoad.util.BaseConverter
 import com.muedsa.tvbox.novipnoad.util.RC4
 import com.muedsa.tvbox.tool.ChromeUserAgent
 import com.muedsa.tvbox.tool.LenientJson
@@ -31,7 +30,6 @@ import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import org.jsoup.nodes.Element
 import timber.log.Timber
-import java.io.ByteArrayOutputStream
 import java.util.Locale
 
 class MediaDetailService(
@@ -224,148 +222,16 @@ class MediaDetailService(
             .html()
         val device = DEVICE_REGEX.find(bodyHtml)?.groups?.get(1)?.value
             ?: throw RuntimeException("解析播放信息失败 device")
-        var matchGroups = ARG_NAMES_FOR_DECODE_V_KEY_FUNCTION_REGEX.find(bodyHtml)?.groups
-            ?: throw RuntimeException("解析播放信息失败 vkey fun arg name")
-        var argReplaceStr = ""
-        val argNames = matchGroups.map {
-            it?.value ?: throw RuntimeException("解析播放信息失败 vkey fun arg name")
-        }.toMutableList().also {
-            it.removeAt(0)
-            argReplaceStr = it.last()
-            it.removeAt(it.size - 1)
+        val partHtml = bodyHtml.substringAfter("/*-- 浏览器完整性检查 --*/")
+            .substringBefore("</script>")
+        val vKeyJs = try {
+            parseVKeyJs(partHtml)
+        } catch (throwable: Throwable) {
+            Timber.i(partHtml)
+            throw throwable
         }
-        val argReplaceMap = mutableMapOf<String, String>()
-        ARG_REPLACE_REGEX.findAll(argReplaceStr).forEach {
-            argReplaceMap.put(it.groups[1]!!.value, it.groups[2]!!.value)
-        }
-        matchGroups = ARG_VALUES_FOR_DECODE_V_KEY_FUNCTION_REGEX.find(bodyHtml)?.groups
-            ?: throw RuntimeException("解析播放信息失败 vkey fun arg value")
-        val argValues = matchGroups.map {
-            it?.value ?: throw RuntimeException("解析播放信息失败 vkey fun arg value")
-        }.toMutableList().also {
-            it.removeAt(0)
-        }
-        matchGroups = DATA_REPLACE_MAP_FOR_DECODE_V_KEY_REGEX.find(bodyHtml)?.groups
-            ?: throw RuntimeException("解析播放信息失败 vkey data_replaceMap arg name")
-        val dataArgName = matchGroups[1]?.value
-            ?: throw RuntimeException("解析播放信息失败 vkey data arg name")
-        val replaceMapArgName = matchGroups[3]?.value
-            ?: throw RuntimeException("解析播放信息失败 vkey replaceMap arg name")
-        matchGroups = TO_BASE_FOR_DECODE_V_KEY_REGEX.find(bodyHtml)?.groups
-            ?: throw RuntimeException("解析播放信息失败 vkey toBase")
-        val fromBaseArgName = matchGroups[1]?.value
-            ?: throw RuntimeException("解析播放信息失败 vkey fromBaseArgName")
-        val toBase = matchGroups[2]?.value?.toInt()
-            ?: throw RuntimeException("解析播放信息失败 vkey toBase")
-        val charCodeSaltArgName = matchGroups[3]?.value
-            ?: throw RuntimeException("解析播放信息失败 vkey charCodeSaltArgName")
-        val vKeyJs = decodeVKeyJS(
-            data = decodeFunArgStringValue(dataArgName, argNames, argValues, argReplaceMap),
-            replaceMap = decodeFunArgStringValue(
-                replaceMapArgName,
-                argNames,
-                argValues,
-                argReplaceMap
-            ),
-            charCodeSalt = decodeFunArgIntValue(
-                charCodeSaltArgName,
-                argNames,
-                argValues,
-                argReplaceMap
-            ),
-            fromBase = decodeFunArgIntValue(fromBaseArgName, argNames, argValues, argReplaceMap),
-            toBase = toBase
-        )
         return step2(vid = vid, device = device, vKey = parseVKey(vKeyJs), referrer = pageUrl)
     }
-
-//    private suspend fun step2(
-//        vid: String,
-//        device: String,
-//        vKey: VKey,
-//        referrer: String
-//    ): VideoUrlInfo {
-//        delay(200)
-//        val body =
-//            "https://player.novipnoad.net/v1/player.php?id=${vid}&device=$device".toRequestBuild()
-//                .feignChrome(referer = referrer)
-//                .get(okHttpClient = okHttpClient)
-//                .checkSuccess()
-//                .parseHtml()
-//                .body()
-//        val jsApi = JSAPI_REGEX.find(body.html())?.groups?.get(1)?.value
-//            ?: throw RuntimeException("解析播放信息失败 jsapi")
-//        val jqText = "https://player.novipnoad.net/js/jquery.min.js"
-//            .toRequestBuild()
-//            .feignChrome(referer = referrer)
-//            .get(okHttpClient = okHttpClient)
-//            .checkSuccess()
-//            .stringBody()
-//        // location[_0x3d3628(0xc9,'R)wj')][_0x3d3628(0xb9,'%(hT')](/player.novipnoad.(com|net|cc|uk|us|org)/)!=null?_0x3d3628(0xb3,'smXA'):_0x3d3628(0xd1,'ku@n')
-//        // _0x3d3628(0xb3, 'smXA')
-//        val matchGroups = JQ_KEY_REGEX.find(jqText)?.groups
-//            ?: throw RuntimeException("解析播放信息失败 JQ fun")
-//        val dataKey = matchGroups[3]?.value
-//            ?: throw RuntimeException("解析播放信息失败 JQ fun dataKey")
-//        val dataFun = JQ_DATA_FUN_REGEX.find(jqText)?.groups?.get(3)?.value
-//            ?: throw RuntimeException("解析播放信息失败 JQ dataFun")
-//        val dataArr = JQ_DATA_ARR_REGEX.findAll(dataFun).mapNotNull {
-//            it.groups[1]?.value
-//        }.toList()
-//        if (dataArr.isEmpty())  throw RuntimeException("解析播放信息失败 JQ dataArr")
-//        return step3(
-//            jsApi = jsApi,
-//            vKey = vKey,
-//            referrer = "https://player.novipnoad.net/",
-//            dataArr = dataArr,
-//            dataKey = dataKey,
-//        )
-//    }
-//
-//    private suspend fun step3(
-//        jsApi: String,
-//        vKey: VKey,
-//        referrer: String,
-//        dataArr: List<String>,
-//        dataKey: String,
-//    ): VideoUrlInfo {
-//        delay(200)
-//        val jsUrl = jsApi.toHttpUrl().newBuilder()
-//            .addQueryParameter("ckey", vKey.ckey.uppercase(Locale.getDefault()))
-//            .addQueryParameter("ref", vKey.ref)
-//            .addQueryParameter("ip", vKey.ip)
-//            .addQueryParameter("time", vKey.time)
-//            .build()
-//            .toString()
-//        val jsText = jsUrl.toRequestBuild()
-//            .feignChrome(referer = referrer)
-//            .get(okHttpClient = okHttpClient)
-//            .checkSuccess()
-//            .stringBody()
-//        if (!jsText.startsWith("var videoUrl=JSON.decrypt(\"")
-//            || !jsText.endsWith("\");")
-//        ) {
-//            Timber.e("解析播放信息失败 videoUrl: $jsText")
-//            throw RuntimeException("解析播放信息失败 videoUrl")
-//        }
-//        val videoUrlData = jsText.removePrefix("var videoUrl=JSON.decrypt(\"")
-//            .removeSuffix("\");")
-//        var videoUrlJson = ""
-//        for (dataStr in dataArr) {
-//            val decryptKey = RC4(dataKey.toByteArray(Charsets.ISO_8859_1))
-//                .decrypt(dataStr.decodeFromJsjiami()) // e11ed29b
-//            videoUrlJson = RC4(decryptKey)
-//                .decrypt(videoUrlData.decodeBase64())
-//                .toString(Charsets.ISO_8859_1)
-//            if (videoUrlJson.startsWith("{") && videoUrlJson.endsWith("}")) {
-//                break
-//            }
-//        }
-//        if (!videoUrlJson.startsWith("{") || !videoUrlJson.endsWith("}")) {
-//            throw RuntimeException("解析播放信息失败 decryptKey")
-//        }
-//        return LenientJson.decodeFromString<VideoUrlInfo>(videoUrlJson)
-//    }
 
     private suspend fun step2(
         vid: String,
@@ -453,78 +319,63 @@ class MediaDetailService(
         val PLAY_INFO_REGEX = "<script>window.playInfo=(\\{.*?\\});</script>".toRegex()
         val DEVICE_REGEX = "params\\['device'] = '(\\w+)'".toRegex()
 
-        // while(n[i]!==h[a]){{s+=n[i];i++}}
-        val DATA_REPLACE_MAP_FOR_DECODE_V_KEY_REGEX =
-            "while\\(([a-z])\\[([a-z])\\]!==([a-z])\\[[a-z]\\]\\)\\{+[a-z]\\+=([a-z])\\[\\2\\];\\2\\+\\+\\}+".toRegex()
-        val TO_BASE_FOR_DECODE_V_KEY_REGEX =
-            "\\+=String.fromCharCode\\(\\w+\\(\\w+,(\\w+),(\\d+)\\)-(\\w+)\\)".toRegex()
-        val ARG_NAMES_FOR_DECODE_V_KEY_FUNCTION_REGEX =
-            "eval\\(function\\(([a-z]),([a-z]),([a-z]),([a-z]),([a-z]),([a-z])\\)(.*?)for\\(".toRegex()
-        val ARG_REPLACE_REGEX = "var ([a-z])=([a-z]);".toRegex()
-        val ARG_VALUES_FOR_DECODE_V_KEY_FUNCTION_REGEX =
-            "return decodeURIComponent\\(escape\\([a-z]\\)\\)\\}\\((\"\\w+\"|\\d+),(\"\\w+\"|\\d+),(\"\\w+\"|\\d+),(\"\\w+\"|\\d+),(\"\\w+\"|\\d+),(\"\\w+\"|\\d+)\\)\\)".toRegex()
+        val TWO_DIMEN_ARR_REGEX =
+            "var\\s+[a-zA-Z_\\$][a-zA-Z0-9_\\$]*=\\[(\\[[0-9,\\[\\]]+\\])\\];".toRegex()
+        val ONE_DIMEN_ARR_REGEX =
+            "var\\s+[a-zA-Z_\\$][a-zA-Z0-9_\\$]*=\\s*\\[([\\d,]+)\\];".toRegex()
+        val ARG_A_B_REGEX =
+            "var\\s+[a-zA-Z_\\$][a-zA-Z0-9_\\$]*=(\\d+),*[a-zA-Z_\\$][a-zA-Z0-9_\\$]*=(\\d+);var\\s+[a-zA-Z_\\$][a-zA-Z0-9_\\$]*='';".toRegex()
+        val ARG_A_REGEX =
+            "var\\s+[a-zA-Z_\\$][a-zA-Z0-9_\\$]*=(\\d+);var\\s+[a-zA-Z_\\$][a-zA-Z0-9_\\$]*='';".toRegex()
+
         val JSAPI_REGEX = "const jsapi = '(.*?)';".toRegex()
         val V_KEY_JS_REGEX = "\\{ckey:'(\\w+)',ref:'(.*?)',ip:'(.*?)',time:'(\\d+)'\\}".toRegex()
-        val JQ_KEY_REGEX =
-            "location\\[(\\w+)\\(0x\\w+,'[^']+'\\)\\]\\[\\1\\(0x\\w+,'[^']+'\\)\\]\\(/player\\.novipnoad\\.\\([a-z|]+\\)/\\)!=null\\?\\1\\(0x(\\w+),'([^']+)'\\)".toRegex()
-        val JQ_DATA_FUN_REGEX = "function (_0x\\w+)\\(\\)\\{var (_0x\\w+)=\\(function\\(\\)\\{return(.*?)\\}\\(\\)\\);\\1=function\\(\\)\\{return \\2;\\};return \\1\\(\\);\\}".toRegex()
-        val JQ_DATA_ARR_REGEX = "'([^']+)'|(_0x\\w+),?".toRegex()
 
         const val KEY_GITHUB_URL_1 = "https://ghfast.top/https://raw.githubusercontent.com/muedsa/novipnoad-plugin/refs/heads/main/key"
         const val KEY_GITHUB_URL_2 = "https://gh-proxy.com/raw.githubusercontent.com/muedsa/novipnoad-plugin/refs/heads/main/key"
         const val KEY_GITHUB_URL_3 = "https://raw.githubusercontent.com/muedsa/novipnoad-plugin/refs/heads/main/key"
 
-        fun decodeFunArgIntValue(
-            argName: String,
-            argNames: List<String>,
-            argValues: List<String>,
-            argReplaceMap: Map<String, String>,
-        ): Int {
-            val realArgName = argReplaceMap.getOrDefault(argName, argName)
-            val index = argNames.indexOf(realArgName)
-            if (index < 0) {
-                throw RuntimeException("not fun arg [${argName}] value from: $argNames, $argReplaceMap")
-            }
-            return argValues[index].toInt()
+        fun parseVKeyJs(bodyHtml: String): String {
+            val twoDimenArrStr =
+                TWO_DIMEN_ARR_REGEX.find(bodyHtml)
+                    ?.groups[1]?.value ?: return parseVKeyJs2(bodyHtml)
+            val oneDimenArrStr =
+                ONE_DIMEN_ARR_REGEX.find(bodyHtml)?.groups[1]?.value
+                    ?: throw RuntimeException("解析播放信息失败 vKeyJs oneDimenArrStr")
+            val dataArrList = LenientJson.decodeFromString<List<List<Int>>>(
+                "[${
+                    twoDimenArrStr
+                        .removeSuffix(",")
+                }]"
+            )
+            val xorKeyList = oneDimenArrStr.split(",").map { it.toInt() }
+            check(dataArrList.size == xorKeyList.size) { "解析播放信息失败 vKeyJs dataArrList.size!=xorKeyList.size" }
+            return dataArrList.mapIndexed { index, dataArr ->
+                val xorKey = xorKeyList[index]
+                dataArr.joinToString("") { Character.toChars(it xor xorKey).concatToString() }
+            }.joinToString("")
         }
 
-        fun decodeFunArgStringValue(
-            argName: String,
-            argNames: List<String>,
-            argValues: List<String>,
-            argReplaceMap: Map<String, String>,
-        ): String {
-            val realArgName = argReplaceMap.getOrDefault(argName, argName)
-            val index = argNames.indexOf(realArgName)
-            if (index < 0) {
-                throw RuntimeException("not fun arg [${argName}] value from: $argNames, $argReplaceMap")
+        fun parseVKeyJs2(bodyHtml: String): String {
+            val oneDimenArrStr =
+                ONE_DIMEN_ARR_REGEX.find(bodyHtml)?.groups[1]?.value
+                    ?: throw RuntimeException("解析播放信息失败 vKeyJs oneDimenArrStr")
+            val dataArr = oneDimenArrStr.split(",").map { it.toInt() }
+            val argABGroups = ARG_A_B_REGEX.find(bodyHtml)?.groups
+                ?: return parseVKeyJs3(dataArr = dataArr, bodyHtml = bodyHtml)
+            val xorKey = argABGroups[1]?.value?.toInt()
+                ?: throw RuntimeException("解析播放信息失败 vKeyJs xorKey")
+            val m = argABGroups[2]?.value?.toInt()
+                ?: throw RuntimeException("解析播放信息失败 vKeyJs m")
+            return dataArr.joinToString("") {
+                Character.toChars((it - m) xor xorKey).concatToString()
             }
-            return argValues[index].removePrefix("\"").removeSuffix("\"")
         }
 
-        fun decodeVKeyJS(
-            data: String,
-            replaceMap: String,
-            charCodeSalt: Int,
-            fromBase: Int,
-            toBase: Int
-        ): String {
-            var result = ""
-            var i = 0
-            while (i < data.length) {
-                var s = ""
-                while (i < data.length && data[i] != replaceMap[fromBase]) {
-                    s += data[i]
-                    i++
-                }
-                for (j in replaceMap.indices) {
-                    s = s.replace(replaceMap[j].toString(), j.toString())
-                }
-                val charCode = BaseConverter.convert(s, fromBase, toBase).toInt() - charCodeSalt
-                result += Character.toChars(charCode).concatToString()
-                i++
-            }
-            return result
+        fun parseVKeyJs3(dataArr: List<Int>, bodyHtml: String): String {
+            val xorKey = ARG_A_REGEX.find(bodyHtml)?.groups[1]?.value?.toInt()
+                ?: throw RuntimeException("解析播放信息失败 vKeyJs xorKey")
+            return dataArr.joinToString("") { Character.toChars(it xor xorKey).concatToString() }
         }
 
         private fun parseVKey(vKeyJs: String): VKey {
@@ -557,31 +408,6 @@ class MediaDetailService(
                 )
             }
             throw RuntimeException("解析播放信息失败 vkey")
-        }
-
-        @OptIn(ExperimentalStdlibApi::class)
-        fun String.decodeFromJsjiami(): ByteArray = this.decodeBase64Like()
-            .toString(Charsets.UTF_8)
-            .toByteArray(Charsets.ISO_8859_1)
-
-        fun String.decodeBase64Like(): ByteArray {
-            val base64Chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789+/="
-            var temp = 0
-            var bits = 0
-            return ByteArrayOutputStream().use {
-                for (char in this) {
-                    val index = base64Chars.indexOf(char)
-                    if (index == -1) continue
-                    temp = (temp shl 6) or index
-                    bits += 6
-                    if (bits >= 8) {
-                        val byteValue = (temp shr (bits - 8)) and 0xff
-                        it.write(byteValue)
-                        bits -= 8
-                    }
-                }
-                it.toByteArray()
-            }
         }
     }
 
