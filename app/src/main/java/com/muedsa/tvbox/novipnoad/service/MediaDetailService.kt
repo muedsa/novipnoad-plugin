@@ -20,6 +20,7 @@ import com.muedsa.tvbox.tool.ChromeUserAgent
 import com.muedsa.tvbox.tool.LenientJson
 import com.muedsa.tvbox.tool.checkSuccess
 import com.muedsa.tvbox.tool.decodeBase64
+import com.muedsa.tvbox.tool.decodeBase64ToStr
 import com.muedsa.tvbox.tool.feignChrome
 import com.muedsa.tvbox.tool.get
 import com.muedsa.tvbox.tool.parseHtml
@@ -328,6 +329,12 @@ class MediaDetailService(
         val ARG_A_REGEX =
             "var\\s+[a-zA-Z_\\$][a-zA-Z0-9_\\$]*=(\\d+);var\\s+[a-zA-Z_\\$][a-zA-Z0-9_\\$]*='';".toRegex()
 
+        val SPLIT_BASE64_REGEX =
+            "[a-zA-Z_\\$][a-zA-Z0-9_\\$]*\\+='([A-Za-z0-9+/=]+)'\\+[a-zA-Z_\\$][a-zA-Z0-9_\\$]*;".toRegex()
+        val BASE64_DATA_PARSE_ARG_EXP_REGEX =
+            "var\\s+([a-zA-Z_\\$][a-zA-Z0-9_\\$]*)=\\((\\d+)([+-^%])(\\d+)\\);".toRegex()
+        val DATA_EXP_ARG_REGEX =
+            "var\\s+[a-zA-Z_\\$][a-zA-Z0-9_\\$]*=\\([a-zA-Z_\\$][a-zA-Z0-9_\\$]*-([a-zA-Z_\\$][a-zA-Z0-9_\\$]*)\\)\\^([a-zA-Z_\\$][a-zA-Z0-9_\\$]*)\\^\\(\\([a-zA-Z_\\$][a-zA-Z0-9_\\$]*\\*([a-zA-Z_\\$][a-zA-Z0-9_\\$]*)\\)%256\\);".toRegex()
         val JSAPI_REGEX = "const jsapi = '(.*?)';".toRegex()
         val V_KEY_JS_REGEX = "\\{ckey:'(\\w+)',ref:'(.*?)',ip:'(.*?)',time:'(\\d+)'\\}".toRegex()
 
@@ -335,47 +342,120 @@ class MediaDetailService(
         const val KEY_GITHUB_URL_2 = "https://gh-proxy.com/raw.githubusercontent.com/muedsa/novipnoad-plugin/refs/heads/main/key"
         const val KEY_GITHUB_URL_3 = "https://raw.githubusercontent.com/muedsa/novipnoad-plugin/refs/heads/main/key"
 
-        fun parseVKeyJs(bodyHtml: String): String {
-            val twoDimenArrStr =
-                TWO_DIMEN_ARR_REGEX.find(bodyHtml)
-                    ?.groups[1]?.value ?: return parseVKeyJs2(bodyHtml)
-            val oneDimenArrStr =
-                ONE_DIMEN_ARR_REGEX.find(bodyHtml)?.groups[1]?.value
-                    ?: throw RuntimeException("解析播放信息失败 vKeyJs oneDimenArrStr")
-            val dataArrList = LenientJson.decodeFromString<List<List<Int>>>(
-                "[${
-                    twoDimenArrStr
-                        .removeSuffix(",")
-                }]"
-            )
-            val xorKeyList = oneDimenArrStr.split(",").map { it.toInt() }
-            check(dataArrList.size == xorKeyList.size) { "解析播放信息失败 vKeyJs dataArrList.size!=xorKeyList.size" }
-            return dataArrList.mapIndexed { index, dataArr ->
-                val xorKey = xorKeyList[index]
+
+        val V_KEY_JS_PARSERS: List<(String) -> String> = listOf(
+            // 0
+            { jsText ->
+                val twoDimenArrStr =
+                    TWO_DIMEN_ARR_REGEX.find(jsText)
+                        ?.groups[1]?.value
+                        ?: throw RuntimeException("解析播放信息失败 vKeyJs twoDimenArrStr")
+                val oneDimenArrStr =
+                    ONE_DIMEN_ARR_REGEX.find(jsText)?.groups[1]?.value
+                        ?: throw RuntimeException("解析播放信息失败 vKeyJs oneDimenArrStr")
+                val dataArrList = LenientJson.decodeFromString<List<List<Int>>>(
+                    "[${
+                        twoDimenArrStr
+                            .removeSuffix(",")
+                    }]"
+                )
+                val xorKeyList = oneDimenArrStr.split(",").map { it.toInt() }
+                check(dataArrList.size == xorKeyList.size) { "解析播放信息失败 vKeyJs dataArrList.size!=xorKeyList.size" }
+                dataArrList.mapIndexed { index, dataArr ->
+                    val xorKey = xorKeyList[index]
+                    dataArr.joinToString("") { Character.toChars(it xor xorKey).concatToString() }
+                }.joinToString("")
+            },
+            // 1
+            { jsText ->
+                val oneDimenArrStr =
+                    ONE_DIMEN_ARR_REGEX.find(jsText)?.groups[1]?.value
+                        ?: throw RuntimeException("解析播放信息失败 vKeyJs oneDimenArrStr")
+                val dataArr = oneDimenArrStr.split(",").map { it.toInt() }
+                val argABGroups = ARG_A_B_REGEX.find(jsText)?.groups
+                    ?: throw RuntimeException("解析播放信息失败 vKeyJs argAB")
+                val xorKey = argABGroups[1]?.value?.toInt()
+                    ?: throw RuntimeException("解析播放信息失败 vKeyJs xorKey")
+                val m = argABGroups[2]?.value?.toInt()
+                    ?: throw RuntimeException("解析播放信息失败 vKeyJs m")
+                dataArr.joinToString("") {
+                    Character.toChars((it - m) xor xorKey).concatToString()
+                }
+            },
+            // 2
+            { jsText ->
+                val oneDimenArrStr =
+                    ONE_DIMEN_ARR_REGEX.find(jsText)?.groups[1]?.value
+                        ?: throw RuntimeException("解析播放信息失败 vKeyJs oneDimenArrStr")
+                val dataArr = oneDimenArrStr.split(",").map { it.toInt() }
+                val xorKey = ARG_A_REGEX.find(jsText)?.groups[1]?.value?.toInt()
+                    ?: throw RuntimeException("解析播放信息失败 vKeyJs xorKey")
                 dataArr.joinToString("") { Character.toChars(it xor xorKey).concatToString() }
-            }.joinToString("")
-        }
-
-        fun parseVKeyJs2(bodyHtml: String): String {
-            val oneDimenArrStr =
-                ONE_DIMEN_ARR_REGEX.find(bodyHtml)?.groups[1]?.value
-                    ?: throw RuntimeException("解析播放信息失败 vKeyJs oneDimenArrStr")
-            val dataArr = oneDimenArrStr.split(",").map { it.toInt() }
-            val argABGroups = ARG_A_B_REGEX.find(bodyHtml)?.groups
-                ?: return parseVKeyJs3(dataArr = dataArr, bodyHtml = bodyHtml)
-            val xorKey = argABGroups[1]?.value?.toInt()
-                ?: throw RuntimeException("解析播放信息失败 vKeyJs xorKey")
-            val m = argABGroups[2]?.value?.toInt()
-                ?: throw RuntimeException("解析播放信息失败 vKeyJs m")
-            return dataArr.joinToString("") {
-                Character.toChars((it - m) xor xorKey).concatToString()
+            },
+            // 3
+            { jsText ->
+                val base64StrResultList = SPLIT_BASE64_REGEX.findAll(jsText)
+                val base64Str = base64StrResultList.joinToString("") {
+                    it.groups[1]?.value
+                        ?: throw RuntimeException("解析播放信息失败 SPLIT_BASE64_REGEX")
+                }
+                if (base64Str.isEmpty()) {
+                    throw RuntimeException("解析播放信息失败 SPLIT_BASE64_REGEX")
+                }
+                val dataArr = base64Str.decodeBase64ToStr().split(",").map { it.toInt() }
+                val args = BASE64_DATA_PARSE_ARG_EXP_REGEX.findAll(jsText).map {
+                    val argName = it.groups[1]?.value
+                        ?: throw RuntimeException("解析播放信息失败 BASE64_DATA_PARSE_ARG_EXP argName")
+                    val leftNum = it.groups[2]?.value?.toInt()
+                        ?: throw RuntimeException("解析播放信息失败 BASE64_DATA_PARSE_ARG_EXP leftNum")
+                    val operator = it.groups[3]?.value
+                        ?: throw RuntimeException("解析播放信息失败 BASE64_DATA_PARSE_ARG_EXP operator")
+                    val rightNum = it.groups[4]?.value?.toInt()
+                        ?: throw RuntimeException("解析播放信息失败 BASE64_DATA_PARSE_ARG_EXP rightNum")
+                    argName to executeOperator(leftNum, operator, rightNum)
+                }.toMap()
+                var arg0 = 0
+                var arg1 = 0
+                var arg2 = 0
+                DATA_EXP_ARG_REGEX.find(jsText)?.let {
+                    val arg0Name = it.groups[1]?.value
+                        ?: throw RuntimeException("解析播放信息失败 DATA_EXP_ARG_REGEX arg0Name")
+                    val arg1Name = it.groups[2]?.value
+                        ?: throw RuntimeException("解析播放信息失败 DATA_EXP_ARG_REGEX arg1Name")
+                    val arg2Name = it.groups[3]?.value
+                        ?: throw RuntimeException("解析播放信息失败 DATA_EXP_ARG_REGEX arg2Name")
+                    arg0 = args[arg0Name]
+                        ?: throw RuntimeException("解析播放信息失败 BASE64_DATA_PARSE_ARG_EXP miss arg0 value")
+                    arg1 = args[arg1Name]
+                        ?: throw RuntimeException("解析播放信息失败 BASE64_DATA_PARSE_ARG_EXP miss arg1 value")
+                    arg2 = args[arg2Name]
+                        ?: throw RuntimeException("解析播放信息失败 BASE64_DATA_PARSE_ARG_EXP miss arg2 value")
+                }
+                dataArr.mapIndexed { index, item ->
+                    Character.toChars((item - arg0) xor arg1 xor (index * arg2) % 256)
+                        .concatToString()
+                }.joinToString("")
             }
-        }
+        )
 
-        fun parseVKeyJs3(dataArr: List<Int>, bodyHtml: String): String {
-            val xorKey = ARG_A_REGEX.find(bodyHtml)?.groups[1]?.value?.toInt()
-                ?: throw RuntimeException("解析播放信息失败 vKeyJs xorKey")
-            return dataArr.joinToString("") { Character.toChars(it xor xorKey).concatToString() }
+        fun executeOperator(leftNum: Int, operator: String, rightNum: Int): Int =
+            when (operator) {
+                "+" -> leftNum + rightNum
+                "-" -> leftNum - rightNum
+                "^" -> leftNum xor rightNum
+                "%" -> leftNum % rightNum
+                else -> throw RuntimeException("解析播放信息失败 BASE64_DATA_PARSE_ARG_EXP 未知操作符:$operator")
+            }
+
+        fun parseVKeyJs(bodyHtml: String): String {
+            for (parser in V_KEY_JS_PARSERS) {
+                try {
+                    return parser(bodyHtml)
+                } catch (_: Throwable) {
+                }
+            }
+            Timber.i("解析VKeyJs失败: $bodyHtml")
+            throw RuntimeException("解析VKeyJs失败")
         }
 
         private fun parseVKey(vKeyJs: String): VKey {
