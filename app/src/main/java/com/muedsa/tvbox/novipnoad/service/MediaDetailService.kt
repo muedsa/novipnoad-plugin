@@ -15,6 +15,7 @@ import com.muedsa.tvbox.novipnoad.NoVipNoadConst
 import com.muedsa.tvbox.novipnoad.model.PlayInfo
 import com.muedsa.tvbox.novipnoad.model.VKey
 import com.muedsa.tvbox.novipnoad.model.VideoUrlInfo
+import com.muedsa.tvbox.novipnoad.util.ExpressionCalculator
 import com.muedsa.tvbox.novipnoad.util.RC4
 import com.muedsa.tvbox.tool.ChromeUserAgent
 import com.muedsa.tvbox.tool.LenientJson
@@ -332,7 +333,7 @@ class MediaDetailService(
         val SPLIT_BASE64_REGEX =
             "[a-zA-Z_\\$][a-zA-Z0-9_\\$]*\\+='([A-Za-z0-9+/=]+)'\\+[a-zA-Z_\\$][a-zA-Z0-9_\\$]*;".toRegex()
         val BASE64_DATA_PARSE_ARG_EXP_REGEX =
-            "var\\s+([a-zA-Z_\\$][a-zA-Z0-9_\\$]*)=\\((\\d+)([+-^%])(\\d+)\\);".toRegex()
+            "var\\s+([a-zA-Z_\\$][a-zA-Z0-9_\\$]*)=([0-9()+\\-*/%<>&|^!~]+);".toRegex()
         val DATA_EXP_ARG_REGEX =
             "var\\s+[a-zA-Z_\\$][a-zA-Z0-9_\\$]*=\\([a-zA-Z_\\$][a-zA-Z0-9_\\$]*-([a-zA-Z_\\$][a-zA-Z0-9_\\$]*)\\)\\^([a-zA-Z_\\$][a-zA-Z0-9_\\$]*)\\^\\(\\([a-zA-Z_\\$][a-zA-Z0-9_\\$]*\\*([a-zA-Z_\\$][a-zA-Z0-9_\\$]*)\\)%256\\);".toRegex()
         val JSAPI_REGEX = "const jsapi = '(.*?)';".toRegex()
@@ -342,6 +343,7 @@ class MediaDetailService(
         const val KEY_GITHUB_URL_2 = "https://gh-proxy.com/raw.githubusercontent.com/muedsa/novipnoad-plugin/refs/heads/main/key"
         const val KEY_GITHUB_URL_3 = "https://raw.githubusercontent.com/muedsa/novipnoad-plugin/refs/heads/main/key"
 
+        val EXPRESSION_CALCULATOR = ExpressionCalculator()
 
         val V_KEY_JS_PARSERS: List<(String) -> String> = listOf(
             // 0
@@ -404,16 +406,17 @@ class MediaDetailService(
                 }
                 val dataArr = base64Str.decodeBase64ToStr().split(",").map { it.toInt() }
                 val args = BASE64_DATA_PARSE_ARG_EXP_REGEX.findAll(jsText).map {
-                    val argName = it.groups[1]?.value
-                        ?: throw RuntimeException("解析播放信息失败 BASE64_DATA_PARSE_ARG_EXP argName")
-                    val leftNum = it.groups[2]?.value?.toInt()
-                        ?: throw RuntimeException("解析播放信息失败 BASE64_DATA_PARSE_ARG_EXP leftNum")
-                    val operator = it.groups[3]?.value
-                        ?: throw RuntimeException("解析播放信息失败 BASE64_DATA_PARSE_ARG_EXP operator")
-                    val rightNum = it.groups[4]?.value?.toInt()
-                        ?: throw RuntimeException("解析播放信息失败 BASE64_DATA_PARSE_ARG_EXP rightNum")
-                    argName to executeOperator(leftNum, operator, rightNum)
-                }.toMap()
+                    try {
+                        val argName = it.groups[1]?.value
+                            ?: throw RuntimeException("解析播放信息失败 BASE64_DATA_PARSE_ARG_EXP argName")
+                        val expression = it.groups[2]?.value
+                            ?: throw RuntimeException("解析播放信息失败 BASE64_DATA_PARSE_ARG_EXP argName")
+                        argName to EXPRESSION_CALCULATOR.calculate(expression)
+                    } catch (_: Throwable) {
+                        null
+                    }
+                }.filterNotNull().toMap()
+                check(args.size >= 3) { "解析播放信息失败 BASE64_DATA_PARSE_ARG_EXP" }
                 var arg0 = 0
                 var arg1 = 0
                 var arg2 = 0
@@ -437,15 +440,6 @@ class MediaDetailService(
                 }.joinToString("")
             }
         )
-
-        fun executeOperator(leftNum: Int, operator: String, rightNum: Int): Int =
-            when (operator) {
-                "+" -> leftNum + rightNum
-                "-" -> leftNum - rightNum
-                "^" -> leftNum xor rightNum
-                "%" -> leftNum % rightNum
-                else -> throw RuntimeException("解析播放信息失败 BASE64_DATA_PARSE_ARG_EXP 未知操作符:$operator")
-            }
 
         fun parseVKeyJs(bodyHtml: String): String {
             for (parser in V_KEY_JS_PARSERS) {
