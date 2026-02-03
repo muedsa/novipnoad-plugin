@@ -1,3 +1,6 @@
 [submodule "TvBoxPlugin"]
 	path = TvBoxPlugin
 	url = https://github.com/muedsa/TvBoxPlugin.git
+[submodule "vibe-js"]
+	path = vibe-js
+	url = https://github.com/muedsa/vibe-js.git

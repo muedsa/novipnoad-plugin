@@ -3,7 +3,7 @@ package com.muedsa.tvbox.novipnoad
 import com.muedsa.tvbox.tool.ChromeUserAgent
 
 object NoVipNoadConst {
-    const val URL = "https://www.novipnoad.net"
+    const val URL = "https://www.novipnoad.cc"
 
     val IMAGE_HTTP_HEADERS = mapOf(
         "Referer" to listOf("$URL/"),

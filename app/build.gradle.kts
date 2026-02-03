@@ -79,6 +79,7 @@ kotlin {
 }
 
 dependencies {
+    implementation(libs.vibe.js)
     compileOnly(project(":api"))
     testImplementation(project(":api"))
     testImplementation(libs.junit4)
