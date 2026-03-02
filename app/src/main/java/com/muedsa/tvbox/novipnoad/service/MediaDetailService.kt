@@ -9,6 +9,7 @@ import com.muedsa.tvbox.api.data.MediaDetail
 import com.muedsa.tvbox.api.data.MediaEpisode
 import com.muedsa.tvbox.api.data.MediaHttpSource
 import com.muedsa.tvbox.api.data.MediaPlaySource
+import com.muedsa.tvbox.api.data.MediaSniffingSource
 import com.muedsa.tvbox.api.data.SavedMediaCard
 import com.muedsa.tvbox.api.service.IMediaDetailService
 import com.muedsa.tvbox.novipnoad.NoVipNoadConst
@@ -181,6 +182,27 @@ class MediaDetailService(
 
     override suspend fun getEpisodePlayInfo(
         playSource: MediaPlaySource,
+        episode: MediaEpisode
+    ): MediaHttpSource {
+        return try {
+            parseEpisodePlayInfo(episode)
+        } catch (throwable: Throwable) {
+            Timber.e(throwable)
+            sniffEpisodePlayInfo(episode)
+        }
+    }
+
+    private fun sniffEpisodePlayInfo(episode: MediaEpisode): MediaHttpSource {
+        return MediaSniffingSource(
+            url = episode.flag7 ?: throw RuntimeException("解析视频地址失败 ref"),
+            httpHeaders = mapOf(
+                "Origin" to "https://www.novipnoad.net",
+                "User-Agent" to ChromeUserAgent
+            )
+        )
+    }
+
+    private suspend fun parseEpisodePlayInfo(
         episode: MediaEpisode
     ): MediaHttpSource {
         if (episode.flag5.isNullOrEmpty()
