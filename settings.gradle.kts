@@ -20,7 +20,5 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "novipnoad-plugin"
-includeBuild("vibe-js")
 include(":app")
-include(":api")
-project(":api").projectDir = rootDir.resolve("./TvBoxPlugin/api/")
+includeBuild("TvBoxPlugin")
