@@ -9,13 +9,12 @@ import com.muedsa.tvbox.tool.stringBody
 import com.muedsa.tvbox.tool.toRequestBuild
 import org.junit.Test
 
-@OptIn(ExperimentalStdlibApi::class)
 class PageContentValidator {
 
     @Test
     fun jq_valid() {
-        val expectedHash = "f975d8344e3ad3825c275369fa3370d9"
-        val hash = "https://player.novipnoad.net/js/jquery.min.js".toRequestBuild()
+        val expectedHash = "715ea96693544093d84e0f5edc85ddbb"
+        val hash = "${NoVipNoadConst.PLAY_URL}/js/jquery.min.js".toRequestBuild()
             .feignChrome()
             .get(okHttpClient = createOkHttpClient(debug = true))
             .checkSuccess()

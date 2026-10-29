@@ -14,15 +14,21 @@ import com.muedsa.tvbox.api.data.SavedMediaCard
 import com.muedsa.tvbox.api.service.IMediaDetailService
 import com.muedsa.tvbox.novipnoad.NoVipNoadConst
 import com.muedsa.tvbox.novipnoad.model.PlayInfo
+import com.muedsa.tvbox.novipnoad.model.VKey
+import com.muedsa.tvbox.novipnoad.model.VideoUrlInfo
+import com.muedsa.tvbox.novipnoad.util.JsonDecrypt
+import com.muedsa.tvbox.novipnoad.wasmcheck.CkeyVkeyExtractor
 import com.muedsa.tvbox.tool.ChromeUserAgent
 import com.muedsa.tvbox.tool.LenientJson
 import com.muedsa.tvbox.tool.checkSuccess
 import com.muedsa.tvbox.tool.feignChrome
 import com.muedsa.tvbox.tool.get
 import com.muedsa.tvbox.tool.parseHtml
+import com.muedsa.tvbox.tool.stringBody
 import com.muedsa.tvbox.tool.toRequestBuild
 import okhttp3.OkHttpClient
 import org.jsoup.nodes.Element
+import timber.log.Timber
 
 class MediaDetailService(
     private val okHttpClient: OkHttpClient
@@ -172,13 +178,123 @@ class MediaDetailService(
         playSource: MediaPlaySource,
         episode: MediaEpisode
     ): MediaHttpSource {
-        return MediaSniffingSource(
-            url = episode.flag7 ?: throw RuntimeException("解析视频地址失败 ref"),
+        return try {
+            parseEpisodePlayInfo(episode = episode)
+        } catch (_: Throwable) {
+            MediaSniffingSource(
+                url = episode.flag7 ?: throw RuntimeException("解析视频地址失败 ref"),
+                httpHeaders = mapOf(
+                    "Origin" to NoVipNoadConst.URL,
+                    "User-Agent" to ChromeUserAgent
+                )
+            )
+        }
+    }
+
+    fun parseEpisodePlayInfo(
+        episode: MediaEpisode
+    ): MediaHttpSource {
+        if (episode.flag5.isNullOrEmpty()
+            || episode.flag6.isNullOrEmpty()
+            || episode.flag7.isNullOrEmpty()
+        ) {
+            throw RuntimeException("解析视频地址失败 vid&pkey&ref")
+        }
+        val videoUrlInfo = parseVideoUrlInfo(
+            vid = episode.flag5!!,
+            pKey = episode.flag6!!,
+            videoPageUrl = episode.flag7!!
+        )
+        if (videoUrlInfo.quality.isEmpty()) {
+            throw RuntimeException("解析视频地址失败 videoUrlInfo.quality")
+        }
+        val i =
+            if (videoUrlInfo.defaultQuality < videoUrlInfo.quality.size) videoUrlInfo.defaultQuality else 0
+        return MediaHttpSource(
+            url = videoUrlInfo.quality[i].url,
             httpHeaders = mapOf(
-                "Origin" to NoVipNoadConst.URL,
+                "Origin" to "${NoVipNoadConst.PLAY_URL}/",
                 "User-Agent" to ChromeUserAgent
             )
         )
+    }
+
+    fun parseVideoUrlInfo(
+        vid: String,
+        pKey: String,
+        videoPageUrl: String
+    ): VideoUrlInfo {
+        val (device, encryptedJs) = getDeviceAndEncryptedJs(vid = vid, pKey = pKey, videoPageUrl =videoPageUrl)
+        Timber.tag("encryptedJs").d(encryptedJs)
+        val (ckey, vkey) = getCkeyVkey(encryptedJs)
+        val encryptedVideoUrl = getEncryptedVideoUrl(id = vid, device = device, ckey = ckey, vkey = vkey)
+        val decryptedVideoUrl = JsonDecrypt.decrypt(
+            ciphertext = encryptedVideoUrl,
+            host = NoVipNoadConst.PLAY_HOST,
+        )
+        Timber.tag("decryptedVideoUrl").d(decryptedVideoUrl)
+        return LenientJson.decodeFromString<VideoUrlInfo>(decryptedVideoUrl)
+    }
+
+    fun getDeviceAndEncryptedJs(
+        vid: String,
+        pKey: String,
+        videoPageUrl: String
+    ): Pair<String, String> {
+        val pageBodyHtml = "${NoVipNoadConst.PLAY_URL}/v1/?url=${vid}&pkey=${pKey}&ref=$videoPageUrl"
+            .toRequestBuild()
+            .feignChrome(referer = "${NoVipNoadConst.URL}/")
+            .get(okHttpClient = okHttpClient)
+            .checkSuccess()
+            .parseHtml()
+            .body()
+            .html()
+        val device = DEVICE_REGEX.find(pageBodyHtml)?.groups?.get(1)?.value
+            ?: throw RuntimeException("解析播放信息失败 device")
+        val encryptedJs = pageBodyHtml.substringAfter("/*-- 浏览器完整性检查 --*/")
+            .substringBefore("</script>")
+        Timber.tag("encryptedJs").d(encryptedJs)
+        return Pair(device, encryptedJs)
+    }
+
+    fun getCkeyVkey(
+        encryptedJs: String,
+    ): Pair<String, VKey> {
+        val extractor = CkeyVkeyExtractor.fromJs(encryptedJs)
+            val (ckey, vkeyStr) = extractor.deriveKeys()
+        Timber.tag("ckey").d(ckey)
+        Timber.tag("vkey").d(vkeyStr)
+        val vkey = LenientJson.decodeFromString<VKey>(vkeyStr)
+        return Pair(ckey, vkey)
+    }
+
+    fun getEncryptedVideoUrl(
+        id: String,
+        device: String,
+        ckey: String,
+        vkey: VKey,
+    ): String {
+        val playerPageBodyHtml = "${NoVipNoadConst.PLAY_URL}/v1/player.php?id=${id}&device=$device"
+            .toRequestBuild()
+            .feignChrome(referer = "${NoVipNoadConst.URL}/")
+            .get(okHttpClient = okHttpClient)
+            .checkSuccess()
+            .parseHtml()
+            .body()
+            .html()
+        val jsApi = JSAPI_REGEX.find(playerPageBodyHtml)?.groups?.get(1)?.value
+            ?: throw RuntimeException("解析播放信息失败 jsapi")
+        val jsApiContent =
+            "${jsApi}?ckey=${ckey.uppercase()}&ref=${vkey.ref}&ip=${vkey.ip}&time=${vkey.time}"
+                .toRequestBuild()
+                .feignChrome(referer = "${NoVipNoadConst.URL}/")
+                .get(okHttpClient = okHttpClient)
+                .checkSuccess()
+                .stringBody()
+        val encryptedVideoUrl = VIDEO_URL_REGEX.find(jsApiContent)?.groups?.get(1)?.value
+            ?: throw RuntimeException("解析播放信息失败 videoUrl")
+        Timber.tag("encryptedVideoUrl").d(encryptedVideoUrl)
+        return encryptedVideoUrl
     }
 
     override suspend fun getEpisodeDanmakuDataList(episode: MediaEpisode): List<DanmakuData> =
@@ -188,5 +304,13 @@ class MediaDetailService(
 
     companion object {
         val PLAY_INFO_REGEX = "<script>window.playInfo=(\\{.*?\\});</script>".toRegex()
+        // val ID_REGEX = "params\\['id'] = '(\\w+)'".toRegex()
+        val DEVICE_REGEX = "params\\['device'] = '(\\w+)'".toRegex()
+
+        val JSAPI_REGEX = "const jsapi = '(.*?)';".toRegex()
+
+        val VIDEO_URL_REGEX =
+            "var\\s+videoUrl\\s*=\\s*JSON.decrypt\\(\\s*['\"](.*?)['\"]\\s*\\)\\s*;".toRegex()
+
     }
 }

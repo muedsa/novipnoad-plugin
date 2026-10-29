@@ -2,6 +2,8 @@ package com.muedsa.tvbox.novipnoad
 
 import com.muedsa.tvbox.api.data.MediaCatalogConfig
 import com.muedsa.tvbox.api.data.MediaCatalogOption
+import com.muedsa.tvbox.novipnoad.service.MediaDetailService
+import com.muedsa.tvbox.novipnoad.util.JsonDecrypt
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -10,7 +12,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
-import kotlin.intArrayOf
+import timber.log.Timber
 import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.seconds
 
@@ -19,7 +21,7 @@ import kotlin.time.Duration.Companion.seconds
 class VideoUrlParserValidator {
 
     private val catalogService = TestPlugin.provideMediaCatalogService()
-    private val detailService = TestPlugin.provideMediaDetailService()
+    private val detailService = TestPlugin.provideMediaDetailService() as MediaDetailService
 
     private var config: MediaCatalogConfig? = null
     private var configMutex = Mutex()
@@ -43,7 +45,7 @@ class VideoUrlParserValidator {
                 val episode = playSource.episodeList[0]
                 delay(2.seconds)
                 try {
-                    val episodePlayInfo = detailService.getEpisodePlayInfo(playSource = playSource, episode = episode)
+                    val episodePlayInfo = detailService.parseEpisodePlayInfo(episode = episode)
                     println("${media.title} - ${episodePlayInfo.url}")
                 } catch (throwable: Throwable) {
                     println("error: ${media.title} - ${media.detailUrl}")
