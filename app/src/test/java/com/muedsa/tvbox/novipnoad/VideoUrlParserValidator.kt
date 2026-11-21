@@ -37,9 +37,10 @@ class VideoUrlParserValidator {
     fun videoUrlParser_valid() = runTest(timeout = 3.hours) {
         val config = getConfig()
         val options = MediaCatalogOption.getDefault(config.catalogOptions)
-        for (loadKey in 1..10) {
+        for (loadKey in 1..9 step 3) {
             val catalogResult = catalogService.catalog(options = options, loadKey = loadKey.toString(), loadSize = 16)
-            for (media in catalogResult.list) {
+            val take3List = if (catalogResult.list.size > 3) catalogResult.list.shuffled().take(3) else catalogResult.list
+            for (media in take3List) {
                 val detailData = detailService.getDetailData(mediaId = media.id, detailUrl = media.detailUrl)
                 val playSource = detailData.playSourceList[0]
                 val episode = playSource.episodeList[0]

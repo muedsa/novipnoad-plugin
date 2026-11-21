@@ -1,5 +1,6 @@
 package com.muedsa.tvbox.novipnoad.wasmcheck
 
+import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class CkeyVkeyExtractorTest {
@@ -13,8 +14,11 @@ class CkeyVkeyExtractorTest {
         """.trimIndent()
         val extractor = CkeyVkeyExtractor.fromJs(js)
         val (ckey, vkey) = extractor.deriveKeys()
-        println(ckey)
-        println(vkey)
+        assertEquals("9d5cce22c19f78a1caed0ef9d1d5fe4a13eea9d5", ckey)
+        assertEquals(
+            decodeGolden("eyJyZWYiOiIvbW92aWUvMTU0NjU3Lmh0bWwiLCJpcCI6IjIyMy4xNjYuMTcuMiIsInRpbWUiOiIxNzkzMjQ2MjgzIn0="),
+            vkey,
+        )
     }
 
     @Test
@@ -26,7 +30,10 @@ class CkeyVkeyExtractorTest {
         """.trimIndent()
         val extractor = CkeyVkeyExtractor.fromJs(js)
         val (ckey, vkey) = extractor.deriveKeys()
-        println(ckey)
-        println(vkey)
+        assertEquals("a118050869fcd4e098f928ae1a6315aa63b8473d", ckey)
+        assertEquals(
+            decodeGolden("eyJyZWYiOiJodHRwczovL3d3dy5ub3ZpcG5vYWQudWsvbW92aWUvMTU0NTQ0Lmh0bWwiLCJpcCI6IjE4MC4xNjUuMjguMTgzIiwidGltZSI6IjE3OTMyNTM3NDcifQ=="),
+            vkey,
+        )
     }
 }

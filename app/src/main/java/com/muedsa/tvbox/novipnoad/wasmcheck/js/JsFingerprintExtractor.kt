@@ -10,10 +10,12 @@ package com.muedsa.tvbox.novipnoad.wasmcheck.js
  *    （取自含 !important 的 textContent）
  *  - `canvasOk   = true`（正常浏览器返回 83927）
  *  - `domOk      = true`（正常浏览器返回 61934）
+ *  - `extraMagics` = 其余 `条件 ? 魔数 : 0` 的魔数，按出现顺序（例如 location 检测的 71923）
  *
  * 三个已知版本的提取结果：
  *  - #1：gridWidth=145, cssWidth=154
  *  - #3：gridWidth=132, cssWidth=179
+ *  - #4：gridWidth=161, cssWidth=174, extraMagics=[71923]（新增 location 检测段）
  */
 object JsFingerprintExtractor {
 
@@ -30,12 +32,26 @@ object JsFingerprintExtractor {
     )
     private val FIRST_WIDTH = Regex("""width\s*:\s*(\d+)px""")
 
+    /**
+     * 指纹串里每一项检测命中时返回的魔数，形如 `(cond)?83927:0`。
+     *
+     * 只认 4 位以上的常量，避免把压缩代码里 `x?1:0` 之类误判成检测项；
+     * 前两个依次是 canvas / dom 检测，其余都算追加段。
+     */
+    private val MAGIC = Regex("""\?\s*(\d{4,})\s*:\s*0""")
+
+    private const val HEAD_MAGIC_COUNT = 2
+
     fun extract(js: String): FingerprintParams = FingerprintParams(
         gridWidth = extractGridWidth(js),
         canvasOk = true,
         domOk = true,
         cssWidth = extractCssWidth(js),
+        extraMagics = extractMagics(js).drop(HEAD_MAGIC_COUNT),
     )
+
+    private fun extractMagics(js: String): List<Int> =
+        MAGIC.findAll(js).mapNotNull { it.groupValues[1].toIntOrNull() }.toList()
 
     private fun extractGridWidth(js: String): Int {
         val cssText = GRID_CSS_TEXT.find(js)?.groupValues?.get(1)

@@ -47,16 +47,37 @@ class CkeyVkeyExtractor(
 
     /** 使用显式指纹派生。 */
     fun deriveKeys(fp: FingerprintParams): Pair<String, String> =
-        deriveKeys(Djb2.envHash(fp.gridWidth, fp.canvasOk, fp.domOk, fp.cssWidth))
+        deriveKeys(Djb2.envHash(fp))
 
-    /** 使用 fromJs 自动提取的指纹派生。 */
+    /**
+     * 使用 fromJs 自动提取的指纹派生。
+     *
+     * 站点会不定期往指纹串末尾追加检测段（例如 location 检测），而追加段的
+     * 数量只能从 JS 里推断。这里按「保留全部追加段 → 逐级减少」的顺序试，
+     * 返回第一个格式正常的 ckey/vkey（40 位十六进制 + JSON 对象），
+     * 避免指纹对不上时静默产出乱码。
+     */
     fun deriveKeys(): Pair<String, String> {
         val fp = defaultFingerprint
             ?: throw IllegalStateException(
                 "该实例未携带指纹，请使用 deriveKeys(fp) / deriveKeys(hash)，" +
                         "或改用 CkeyVkeyExtractor.fromJs(js) 创建",
             )
-        return deriveKeys(fp)
+        var first: Pair<String, String>? = null
+        for (count in fp.extraMagics.size downTo 0) {
+            val keys = deriveKeys(fp.copy(extraMagics = fp.extraMagics.take(count)))
+            if (first == null) first = keys
+            if (looksLikeKeys(keys)) return keys
+        }
+        return checkNotNull(first)
+    }
+
+    /** 正常输出：ckey 是 40 位小写十六进制，vkey 是 JSON 对象。 */
+    private fun looksLikeKeys(keys: Pair<String, String>): Boolean {
+        val (ckey, vkey) = keys
+        return ckey.length == CKEY_HEX_LENGTH &&
+                ckey.all { it in HEX_DIGITS } &&
+                vkey.startsWith("{")
     }
 
     /** 查看自动提取到的指纹（从 fromWasm 创建时为 null）。 */
@@ -78,5 +99,8 @@ class CkeyVkeyExtractor(
         /** 只有 Wasm 字节时使用，需要手动传指纹或 hash。 */
         fun fromWasm(wasmBytes: ByteArray): CkeyVkeyExtractor =
             CkeyVkeyExtractor(wasmBytes)
+
+        private const val CKEY_HEX_LENGTH = 40
+        private const val HEX_DIGITS = "0123456789abcdef"
     }
 }

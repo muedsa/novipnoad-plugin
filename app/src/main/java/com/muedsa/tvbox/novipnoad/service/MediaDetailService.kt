@@ -180,7 +180,8 @@ class MediaDetailService(
     ): MediaHttpSource {
         return try {
             parseEpisodePlayInfo(episode = episode)
-        } catch (_: Throwable) {
+        } catch (throwable: Throwable) {
+            Timber.e(throwable, "解析视频地址失败")
             MediaSniffingSource(
                 url = episode.flag7 ?: throw RuntimeException("解析视频地址失败 ref"),
                 httpHeaders = mapOf(
