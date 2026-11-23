@@ -6,7 +6,7 @@ junit4 = "4.13.2"
 kotlinxCoroutinesTest = "1.11.0"
 smaliDexlib2 = "3.0.10"
 androidxTest = "1.7.0"
-robolectric = "4.18"
+robolectric = "4.18.1"
 
 [libraries]
 tvbox-api = { module = "com.muedsa.tvbox:api", version.ref = "tvboxApi" }
